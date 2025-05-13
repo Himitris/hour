@@ -1,4 +1,4 @@
-// app/(tabs)/_layout.tsx 
+// app/(tabs)/_layout.tsx
 import { Tabs } from 'expo-router';
 import { StyleSheet } from 'react-native';
 import {
@@ -6,15 +6,13 @@ import {
   Calendar,
   ChartBar as BarChart2,
 } from 'lucide-react-native';
-import { COLORS, FONTS, SHADOWS } from '@/constants/theme';
+import { COLORS, FONTS } from '@/constants/theme';
 
 export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerShown: true,
-        headerStyle: styles.header,
-        headerTitleStyle: styles.headerTitle,
+        headerShown: false, // Suppression du header global
         tabBarStyle: styles.tabBar,
         tabBarActiveTintColor: COLORS.primary,
         tabBarInactiveTintColor: COLORS.textLight,
@@ -42,7 +40,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="stats"
         options={{
-          title: 'Statistiques',
+          title: 'Stats',
           tabBarIcon: ({ color, size }) => (
             <BarChart2 size={size} color={color} />
           ),
@@ -53,29 +51,21 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  header: {
-    backgroundColor: COLORS.card,
-    ...SHADOWS.small,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  headerTitle: {
-    fontFamily: FONTS.medium,
-    fontSize: 18,
-    color: COLORS.text,
-  },
   tabBar: {
     backgroundColor: COLORS.card,
-    ...SHADOWS.medium,
-    height: 64,
-    paddingBottom: 10,
-    paddingTop: 6,
+    height: 60, // Hauteur réduite
+    marginBottom: 18,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
+    elevation: 8,
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   tabBarLabel: {
     fontFamily: FONTS.regular,
     fontSize: 12,
-    marginTop: 2,
+    marginTop: 0, // Réduit l'espacement
   },
 });

@@ -21,9 +21,9 @@ import {
   getBillingStatusColor,
 } from '@/utils/statsCalculator';
 import { WorkEntries, CalendarMarking } from '@/types';
-import { COLORS, FONTS, SHADOWS } from '@/constants/theme';
+import { COLORS, FONTS } from '@/constants/theme';
 import CalendarLegend from '@/components/CalendarLegend';
-import Animated, { FadeIn, SlideInRight } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 export default function CalendarScreen() {
   const [entries, setEntries] = useState<WorkEntries>({});
@@ -95,65 +95,6 @@ export default function CalendarScreen() {
     updateMarkedDates(entries);
   };
 
-  const renderSelectedDateInfo = () => {
-    if (!selectedDate || !entries[selectedDate]) {
-      return (
-        <View style={styles.noDataContainer}>
-          <Text style={styles.noDataText}>Aucune donnée pour cette date</Text>
-        </View>
-      );
-    }
-
-    const entry = entries[selectedDate];
-    return (
-      <Animated.View
-        entering={SlideInRight.duration(300)}
-        style={styles.dateInfoContainer}
-      >
-        <Text style={styles.dateTitle}>
-          {formatDateForDisplay(parseISODate(selectedDate))}
-        </Text>
-
-        <View style={styles.hoursContainer}>
-          <Text style={styles.hoursLabel}>Heures travaillées:</Text>
-          <Text style={styles.hoursValue}>{entry.hours.toFixed(1)}h</Text>
-          <View
-            style={[
-              styles.billingStatus,
-              {
-                backgroundColor:
-                  entry.isBilled !== false
-                    ? COLORS.primaryLightest
-                    : COLORS.secondaryLightest,
-              },
-            ]}
-          >
-            <Text
-              style={[
-                styles.billingStatusText,
-                {
-                  color:
-                    entry.isBilled !== false
-                      ? COLORS.primary
-                      : COLORS.secondary,
-                },
-              ]}
-            >
-              {entry.isBilled !== false ? 'Notées' : 'Non notées'}
-            </Text>
-          </View>
-        </View>
-
-        {entry.note && (
-          <View style={styles.noteContainer}>
-            <Text style={styles.noteLabel}>Note:</Text>
-            <Text style={styles.noteText}>{entry.note}</Text>
-          </View>
-        )}
-      </Animated.View>
-    );
-  };
-
   const getCalendarTheme = () => ({
     backgroundColor: COLORS.card,
     calendarBackground: COLORS.card,
@@ -171,43 +112,110 @@ export default function CalendarScreen() {
     textDayFontFamily: FONTS.regular,
     textDayHeaderFontFamily: FONTS.medium,
     textMonthFontSize: 16,
-    textDayFontSize: 14,
-    textDayHeaderFontSize: 12,
+    textDayFontSize: 13,
+    textDayHeaderFontSize: 11,
   });
+
+  const renderSelectedDateInfo = () => {
+    if (!selectedDate || !entries[selectedDate]) {
+      return (
+        <View style={styles.noDataContainer}>
+          <Text style={styles.noDataText}>Aucune donnée pour cette date</Text>
+        </View>
+      );
+    }
+
+    const entry = entries[selectedDate];
+    return (
+      <Animated.View
+        entering={FadeIn.duration(300)}
+        style={styles.dateInfoContainer}
+      >
+        <Text style={styles.dateTitle}>
+          {formatDateForDisplay(parseISODate(selectedDate))}
+        </Text>
+
+        <View style={styles.statsContainer}>
+          <View style={styles.statBox}>
+            <Text style={styles.statLabel}>Heures</Text>
+            <Text style={styles.statValue}>{entry.hours.toFixed(1)}h</Text>
+          </View>
+
+          <View style={styles.statBox}>
+            <Text style={styles.statLabel}>Status</Text>
+            <View
+              style={[
+                styles.statusBadge,
+                {
+                  backgroundColor:
+                    entry.isBilled !== false
+                      ? COLORS.primaryLightest
+                      : COLORS.secondaryLightest,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.statusText,
+                  {
+                    color:
+                      entry.isBilled !== false
+                        ? COLORS.primary
+                        : COLORS.secondary,
+                  },
+                ]}
+              >
+                {entry.isBilled !== false ? 'Notées' : 'Non notées'}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {entry.note && (
+          <View style={styles.noteContainer}>
+            <Text style={styles.noteLabel}>Note:</Text>
+            <Text style={styles.noteText}>{entry.note}</Text>
+          </View>
+        )}
+      </Animated.View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        <Animated.View entering={FadeIn.duration(500)} style={styles.header}>
+        <Animated.View entering={FadeIn.duration(300)} style={styles.header}>
           <Text style={styles.title}>Calendrier</Text>
-          <Text style={styles.subtitle}>Visualisez vos heures de travail</Text>
+          <TouchableOpacity style={styles.refreshButton} onPress={loadEntries}>
+            <RefreshCw size={14} color={COLORS.primary} />
+            <Text style={styles.refreshText}>Actualiser</Text>
+          </TouchableOpacity>
         </Animated.View>
-
-        <CalendarLegend />
 
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={COLORS.primary} />
           </View>
         ) : (
-          <View style={styles.calendarContainer}>
-            <RNCalendar
-              theme={getCalendarTheme()}
-              markingType={'custom'}
-              markedDates={markedDates}
-              onDayPress={(day) => handleDateSelect(day.dateString)}
-              enableSwipeMonths={true}
-            />
+          <View style={styles.contentContainer}>
+            <View style={styles.calendarContainer}>
+              <RNCalendar
+                theme={getCalendarTheme()}
+                markingType={'custom'}
+                markedDates={markedDates}
+                onDayPress={(day) => handleDateSelect(day.dateString)}
+                enableSwipeMonths={true}
+                hideExtraDays={true}
+              />
 
-            <TouchableOpacity
-              style={styles.refreshButton}
-              onPress={loadEntries}
-            >
-              <RefreshCw size={16} color={COLORS.primary} />
-              <Text style={styles.refreshText}>Actualiser</Text>
-            </TouchableOpacity>
+              <View style={styles.legendContainer}>
+                <CalendarLegend />
+              </View>
+            </View>
 
-            {renderSelectedDateInfo()}
+            <View style={styles.selectedInfoContainer}>
+              {renderSelectedDateInfo()}
+            </View>
           </View>
         )}
       </View>
@@ -222,110 +230,135 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    padding: 20,
+    padding: 16,
   },
   header: {
-    marginBottom: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   title: {
     fontFamily: FONTS.bold,
-    fontSize: 28,
+    fontSize: 24,
     color: COLORS.text,
-    marginBottom: 4,
   },
-  subtitle: {
-    fontFamily: FONTS.regular,
-    fontSize: 16,
-    color: COLORS.textLight,
-    marginBottom: 8,
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: COLORS.primaryLightest,
+  },
+  refreshText: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.primary,
+    marginLeft: 4,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  contentContainer: {
+    flex: 1,
+    flexDirection: 'column',
+  },
   calendarContainer: {
     backgroundColor: COLORS.card,
     borderRadius: 16,
+    padding: 8,
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    marginBottom: 10,
+    flex: 0.62, // Prend ~60% de l'espace
+  },
+  legendContainer: {
+    marginTop: 4,
+    paddingHorizontal: 4,
+  },
+  selectedInfoContainer: {
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
     padding: 12,
-    ...SHADOWS.medium,
-  },
-  refreshButton: {
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: COLORS.primaryLightest,
-    marginVertical: 16,
-  },
-  refreshText: {
-    fontFamily: FONTS.medium,
-    fontSize: 14,
-    color: COLORS.primary,
-    marginLeft: 8,
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    flex: 0.35, // Prend ~35% de l'espace
   },
   dateInfoContainer: {
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    paddingTop: 16,
-    marginTop: 8,
-    paddingHorizontal: 8,
+    flex: 1,
   },
   dateTitle: {
     fontFamily: FONTS.medium,
-    fontSize: 18,
+    fontSize: 16,
     color: COLORS.text,
-    marginBottom: 12,
+    marginBottom: 10,
     textAlign: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    paddingBottom: 6,
   },
-  hoursContainer: {
+  statsContainer: {
     flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 10,
+  },
+  statBox: {
     alignItems: 'center',
-    marginBottom: 12,
-    justifyContent: 'center',
+    padding: 8,
+    backgroundColor: COLORS.inputBackground,
+    borderRadius: 10,
+    width: '45%',
   },
-  hoursLabel: {
-    fontFamily: FONTS.regular,
-    fontSize: 14,
-    color: COLORS.textLight,
-    marginRight: 8,
-  },
-  hoursValue: {
-    fontFamily: FONTS.bold,
-    fontSize: 18,
-    color: COLORS.text,
-    marginRight: 8,
-  },
-  billingStatus: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  billingStatusText: {
+  statLabel: {
     fontFamily: FONTS.medium,
     fontSize: 12,
-  },
-  noteContainer: {
-    backgroundColor: COLORS.inputBackground,
-    padding: 12,
-    borderRadius: 12,
-    marginTop: 8,
-  },
-  noteLabel: {
-    fontFamily: FONTS.medium,
-    fontSize: 14,
     color: COLORS.textLight,
     marginBottom: 4,
   },
-  noteText: {
-    fontFamily: FONTS.regular,
-    fontSize: 14,
+  statValue: {
+    fontFamily: FONTS.bold,
+    fontSize: 18,
     color: COLORS.text,
   },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  statusText: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+  },
+  noteContainer: {
+    backgroundColor: COLORS.inputBackground,
+    padding: 8,
+    borderRadius: 10,
+    marginTop: 4,
+  },
+  noteLabel: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.textLight,
+    marginBottom: 2,
+  },
+  noteText: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.text,
+    lineHeight: 16,
+  },
   noDataContainer: {
-    padding: 16,
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
   },
   noDataText: {
