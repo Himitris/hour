@@ -56,6 +56,7 @@ export default function CalendarLegend() {
 const styles = StyleSheet.create({
   container: {
     paddingVertical: 2,
+    paddingTop: 25
   },
   legendRow: {
     flexDirection: 'row',

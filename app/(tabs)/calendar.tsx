@@ -85,6 +85,12 @@ export default function CalendarScreen() {
         ...marked[selectedDate],
         selected: true,
         selectedColor: COLORS.primary,
+        customStyles: {
+          ...marked[selectedDate]?.customStyles,
+          container: {
+            ...marked[selectedDate]?.customStyles?.container,
+          },
+        },
       };
     }
 
@@ -93,7 +99,42 @@ export default function CalendarScreen() {
 
   const handleDateSelect = (date: string) => {
     setSelectedDate(date);
-    updateMarkedDates(entries);
+
+    // Reconstruire complètement les marquages avec la nouvelle date sélectionnée
+    const marked: CalendarMarking = {};
+
+    Object.entries(entries).forEach(([dateStr, entry]) => {
+      if (entry.hours > 0) {
+        const color =
+          entry.isBilled !== false
+            ? getHoursIntensityColor(entry.hours)
+            : getBillingStatusColor(entry.hours);
+
+        marked[dateStr] = {
+          customStyles: {
+            container: {
+              backgroundColor: color,
+            },
+            text: {
+              color:
+                (entry.hours >= 8 && entry.isBilled !== false) ||
+                (entry.hours >= 8 && entry.isBilled === false)
+                  ? '#FFFFFF'
+                  : '#333333',
+            },
+          },
+        };
+      }
+    });
+
+    // Ajouter le style de sélection à la date nouvellement sélectionnée
+    marked[date] = {
+      ...marked[date],
+      selected: true,
+      selectedColor: COLORS.primary,
+    };
+
+    setMarkedDates(marked);
   };
 
   const getCalendarTheme = () => ({
@@ -213,33 +254,7 @@ export default function CalendarScreen() {
                 hideExtraDays={true}
                 // Paramètres pour rendre le calendrier plus compact
                 style={styles.calendar}
-                dayComponent={({ date, state, marking, onPress }) => {
-                  const isSelected = marking && marking.selected;
-                  const customStyles = marking && marking.customStyles;
-
-                  return (
-                    <TouchableOpacity
-                      style={[
-                        styles.dayComponent,
-                        customStyles?.container,
-                        isSelected && styles.selectedDay,
-                      ]}
-                      onPress={() => onPress && onPress(date)}
-                    >
-                      <Text
-                        style={[
-                          styles.dayText,
-                          customStyles?.text,
-                          isSelected && styles.selectedDayText,
-                          state === 'disabled' && styles.disabledDayText,
-                          state === 'today' && styles.todayText,
-                        ]}
-                      >
-                        {date?.day ?? ''}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                }}
+                firstDay={1} 
               />
 
               <View style={styles.legendContainer}>

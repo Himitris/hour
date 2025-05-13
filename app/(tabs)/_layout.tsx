@@ -5,6 +5,7 @@ import {
   Clipboard as ClipboardEdit,
   Calendar,
   ChartBar as BarChart2,
+  DollarSign,
 } from 'lucide-react-native';
 import { COLORS, FONTS } from '@/constants/theme';
 
@@ -43,6 +44,15 @@ export default function TabLayout() {
           title: 'Stats',
           tabBarIcon: ({ color, size }) => (
             <BarChart2 size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="payments"
+        options={{
+          title: 'Paiements',
+          tabBarIcon: ({ color, size }) => (
+            <DollarSign size={size} color={color} />
           ),
         }}
       />
