@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar as RNCalendar } from 'react-native-calendars';
@@ -111,9 +112,9 @@ export default function CalendarScreen() {
     textMonthFontFamily: FONTS.medium,
     textDayFontFamily: FONTS.regular,
     textDayHeaderFontFamily: FONTS.medium,
-    textMonthFontSize: 16,
-    textDayFontSize: 13,
-    textDayHeaderFontSize: 11,
+    textMonthFontSize: 14,
+    textDayFontSize: 12,
+    textDayHeaderFontSize: 10,
   });
 
   const renderSelectedDateInfo = () => {
@@ -183,7 +184,11 @@ export default function CalendarScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         <Animated.View entering={FadeIn.duration(300)} style={styles.header}>
           <Text style={styles.title}>Calendrier</Text>
           <TouchableOpacity style={styles.refreshButton} onPress={loadEntries}>
@@ -206,6 +211,35 @@ export default function CalendarScreen() {
                 onDayPress={(day) => handleDateSelect(day.dateString)}
                 enableSwipeMonths={true}
                 hideExtraDays={true}
+                // Paramètres pour rendre le calendrier plus compact
+                style={styles.calendar}
+                dayComponent={({ date, state, marking, onPress }) => {
+                  const isSelected = marking && marking.selected;
+                  const customStyles = marking && marking.customStyles;
+
+                  return (
+                    <TouchableOpacity
+                      style={[
+                        styles.dayComponent,
+                        customStyles?.container,
+                        isSelected && styles.selectedDay,
+                      ]}
+                      onPress={() => onPress && onPress(date)}
+                    >
+                      <Text
+                        style={[
+                          styles.dayText,
+                          customStyles?.text,
+                          isSelected && styles.selectedDayText,
+                          state === 'disabled' && styles.disabledDayText,
+                          state === 'today' && styles.todayText,
+                        ]}
+                      >
+                        {date?.day ?? ''}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                }}
               />
 
               <View style={styles.legendContainer}>
@@ -218,7 +252,7 @@ export default function CalendarScreen() {
             </View>
           </View>
         )}
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -230,7 +264,10 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
+  },
+  scrollContent: {
     padding: 16,
+    paddingBottom: 24,
   },
   header: {
     flexDirection: 'row',
@@ -261,6 +298,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    minHeight: 400,
   },
   contentContainer: {
     flex: 1,
@@ -276,11 +314,39 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
     marginBottom: 10,
-    flex: 0.62, // Prend ~60% de l'espace
+  },
+  calendar: {
+    height: 280, // Hauteur fixe réduite
+  },
+  dayComponent: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 6,
+  },
+  selectedDay: {
+    backgroundColor: COLORS.primary,
+  },
+  dayText: {
+    fontSize: 12,
+    textAlign: 'center',
+    color: COLORS.text,
+  },
+  selectedDayText: {
+    color: COLORS.card,
+  },
+  disabledDayText: {
+    color: '#C0C0C0',
+  },
+  todayText: {
+    color: COLORS.primary,
+    fontFamily: FONTS.medium,
   },
   legendContainer: {
-    marginTop: 4,
-    paddingHorizontal: 4,
+    marginTop: 2,
+    paddingHorizontal: 2,
+    marginBottom: 4,
   },
   selectedInfoContainer: {
     backgroundColor: COLORS.card,
@@ -291,7 +357,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
-    flex: 0.35, // Prend ~35% de l'espace
+    marginBottom: 10,
+    minHeight: 120,
   },
   dateInfoContainer: {
     flex: 1,
@@ -357,7 +424,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   noDataContainer: {
-    flex: 1,
+    padding: 20,
     justifyContent: 'center',
     alignItems: 'center',
   },

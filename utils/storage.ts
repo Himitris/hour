@@ -1,8 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { WorkEntry, WorkEntries } from '@/types';
+import { WorkEntry, WorkEntries, Payment } from '@/types';
 
 const STORAGE_KEY = 'work_hours_data';
+const PAYMENTS_STORAGE_KEY = 'payments_data';
 
+// Fonctions pour les heures de travail
 export const storeWorkEntry = async (entry: WorkEntry): Promise<void> => {
   try {
     const existingData = await getWorkEntries();
@@ -58,7 +60,9 @@ export const getWorkEntries = async (): Promise<WorkEntries> => {
   }
 };
 
-export const getWorkEntryByDate = async (date: string): Promise<WorkEntry | null> => {
+export const getWorkEntryByDate = async (
+  date: string
+): Promise<WorkEntry | null> => {
   try {
     const entries = await getWorkEntries();
     return entries[date] || null;
@@ -73,6 +77,56 @@ export const clearAllEntries = async (): Promise<void> => {
     await AsyncStorage.removeItem(STORAGE_KEY);
   } catch (error) {
     console.error('Error clearing work entries:', error);
+    throw error;
+  }
+};
+
+// Nouvelles fonctions pour les paiements
+export const getPayments = async (): Promise<Payment[]> => {
+  try {
+    const jsonValue = await AsyncStorage.getItem(PAYMENTS_STORAGE_KEY);
+    return jsonValue != null ? JSON.parse(jsonValue) : [];
+  } catch (error) {
+    console.error('Error retrieving payments:', error);
+    return [];
+  }
+};
+
+export const storePayment = async (payment: Payment): Promise<void> => {
+  try {
+    const existingPayments = await getPayments();
+    const updatedPayments = [...existingPayments, payment];
+    await AsyncStorage.setItem(
+      PAYMENTS_STORAGE_KEY,
+      JSON.stringify(updatedPayments)
+    );
+  } catch (error) {
+    console.error('Error storing payment:', error);
+    throw error;
+  }
+};
+
+export const deletePayment = async (paymentId: string): Promise<void> => {
+  try {
+    const existingPayments = await getPayments();
+    const updatedPayments = existingPayments.filter(
+      (payment) => payment.id !== paymentId
+    );
+    await AsyncStorage.setItem(
+      PAYMENTS_STORAGE_KEY,
+      JSON.stringify(updatedPayments)
+    );
+  } catch (error) {
+    console.error('Error deleting payment:', error);
+    throw error;
+  }
+};
+
+export const clearAllPayments = async (): Promise<void> => {
+  try {
+    await AsyncStorage.removeItem(PAYMENTS_STORAGE_KEY);
+  } catch (error) {
+    console.error('Error clearing payments:', error);
     throw error;
   }
 };
