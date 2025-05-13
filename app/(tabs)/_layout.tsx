@@ -1,6 +1,12 @@
+// app/(tabs)/_layout.tsx 
 import { Tabs } from 'expo-router';
 import { StyleSheet } from 'react-native';
-import { Clipboard as ClipboardEdit, Calendar, ChartBar as BarChart2 } from 'lucide-react-native';
+import {
+  Clipboard as ClipboardEdit,
+  Calendar,
+  ChartBar as BarChart2,
+} from 'lucide-react-native';
+import { COLORS, FONTS, SHADOWS } from '@/constants/theme';
 
 export default function TabLayout() {
   return (
@@ -10,10 +16,11 @@ export default function TabLayout() {
         headerStyle: styles.header,
         headerTitleStyle: styles.headerTitle,
         tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: '#3366FF',
-        tabBarInactiveTintColor: '#888888',
+        tabBarActiveTintColor: COLORS.primary,
+        tabBarInactiveTintColor: COLORS.textLight,
         tabBarLabelStyle: styles.tabBarLabel,
-      }}>
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
@@ -47,28 +54,28 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   header: {
-    backgroundColor: '#ffffff',
-    elevation: 2,
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 2 },
+    backgroundColor: COLORS.card,
+    ...SHADOWS.small,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
   headerTitle: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: FONTS.medium,
     fontSize: 18,
-    color: '#333333',
+    color: COLORS.text,
   },
   tabBar: {
-    backgroundColor: '#ffffff',
-    elevation: 8,
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: -2 },
-    height: 60,
-    paddingBottom: 8,
+    backgroundColor: COLORS.card,
+    ...SHADOWS.medium,
+    height: 64,
+    paddingBottom: 10,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
   },
   tabBarLabel: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: FONTS.regular,
     fontSize: 12,
+    marginTop: 2,
   },
 });

@@ -1,9 +1,11 @@
+// components/HoursInput.tsx
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, Keyboard } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, Keyboard, Switch } from 'react-native';
 import { Save } from 'lucide-react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { storeWorkEntry, getWorkEntryByDate } from '@/utils/storage';
 import { formatDateForDisplay, formatISODate } from '@/utils/dateUtils';
+import { COLORS, FONTS } from '@/constants/theme';
 
 interface HoursInputProps {
   date: Date;
@@ -13,6 +15,7 @@ interface HoursInputProps {
 export default function HoursInput({ date, onSave }: HoursInputProps) {
   const [hours, setHours] = useState('');
   const [note, setNote] = useState('');
+  const [isBilled, setIsBilled] = useState(true); // Par défaut, les heures sont notées
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -37,10 +40,12 @@ export default function HoursInput({ date, onSave }: HoursInputProps) {
       if (entry) {
         setHours(entry.hours.toString());
         setNote(entry.note || '');
+        setIsBilled(entry.isBilled !== undefined ? entry.isBilled : true); // Utiliser la valeur existante ou true par défaut
       } else {
         // Reset fields for a new date
         setHours('');
         setNote('');
+        setIsBilled(true);
       }
     } catch (error) {
       console.error('Error loading work entry:', error);
@@ -76,6 +81,7 @@ export default function HoursInput({ date, onSave }: HoursInputProps) {
         date: dateStr,
         hours: numHours,
         note: note.trim() || undefined,
+        isBilled: isBilled,
       });
       
       // Success animation and notification
@@ -92,7 +98,7 @@ export default function HoursInput({ date, onSave }: HoursInputProps) {
   return (
     <View style={styles.container}>
       <Text style={styles.dateText}>{formatDateForDisplay(date)}</Text>
-      
+
       <View style={styles.inputContainer}>
         <Text style={styles.label}>Heures travaillées</Text>
         <TextInput
@@ -105,7 +111,45 @@ export default function HoursInput({ date, onSave }: HoursInputProps) {
           editable={!loading}
         />
       </View>
-      
+
+      <View style={styles.switchContainer}>
+        <Text style={styles.label}>Statut des heures</Text>
+        <Animated.View style={styles.switchWrapper}>
+          <Animated.Text
+            style={[
+              styles.switchLabel,
+              !isBilled && styles.activeLabel,
+              { opacity: isBilled ? 0.6 : 1 },
+            ]}
+          >
+            Non notées
+          </Animated.Text>
+          <Switch
+            value={isBilled}
+            onValueChange={setIsBilled}
+            trackColor={{ false: '#DDDDDD', true: COLORS.primaryLightest }}
+            thumbColor={isBilled ? COLORS.primary : '#999999'}
+            ios_backgroundColor="#DDDDDD"
+            disabled={loading}
+            style={styles.switch}
+          />
+          <Animated.Text
+            style={[
+              styles.switchLabel,
+              isBilled && styles.activeLabel,
+              { opacity: isBilled ? 1 : 0.6 },
+            ]}
+          >
+            Notées
+          </Animated.Text>
+        </Animated.View>
+        <Text style={styles.switchHelp}>
+          {isBilled
+            ? 'Les heures notées sont comptabilisées comme temps facturable'
+            : 'Les heures non notées correspondent au travail interne, formation, etc.'}
+        </Text>
+      </View>
+
       <View style={styles.inputContainer}>
         <Text style={styles.label}>Note (optionnel)</Text>
         <TextInput
@@ -118,7 +162,7 @@ export default function HoursInput({ date, onSave }: HoursInputProps) {
           editable={!loading}
         />
       </View>
-      
+
       <Animated.View style={[styles.buttonContainer, animatedButtonStyle]}>
         <TouchableOpacity
           style={styles.saveButton}
@@ -138,64 +182,102 @@ export default function HoursInput({ date, onSave }: HoursInputProps) {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 20,
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
-    marginBottom: 16,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+    marginBottom: 20,
   },
   dateText: {
     fontFamily: 'Inter-Medium',
-    fontSize: 18,
+    fontSize: 20,
     color: '#333333',
-    marginBottom: 16,
+    marginBottom: 20,
     textAlign: 'center',
   },
   inputContainer: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   label: {
     fontFamily: 'Inter-Medium',
-    fontSize: 14,
-    color: '#555555',
+    fontSize: 16,
+    color: '#444444',
     marginBottom: 8,
   },
   input: {
     fontFamily: 'Inter-Regular',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    backgroundColor: '#F8F8F8',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     fontSize: 16,
     color: '#333333',
     borderWidth: 1,
     borderColor: '#EEEEEE',
   },
   noteInput: {
-    minHeight: 80,
+    minHeight: 100,
     textAlignVertical: 'top',
   },
-  buttonContainer: {
-    alignItems: 'center',
-    marginTop: 8,
+  switchContainer: {
+    marginBottom: 20,
   },
-  saveButton: {
-    backgroundColor: '#3366FF',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 10,
+  switchWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 200,
+    backgroundColor: '#F8F8F8',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#EEEEEE',
+  },
+  switch: {
+    marginHorizontal: 12,
+  },
+  switchLabel: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 14,
+    color: '#777777',
+  },
+  activeLabel: {
+    fontFamily: 'Inter-Medium',
+    color: '#3366FF',
+  },
+  buttonContainer: {
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  saveButton: {
+    backgroundColor: '#3366FF',
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 220,
+    shadowColor: '#3366FF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   buttonText: {
     color: '#FFFFFF',
     fontFamily: 'Inter-Medium',
     fontSize: 16,
-    marginLeft: 8,
+    marginLeft: 10,
+  },
+  switchHelp: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.textLight,
+    fontStyle: 'italic',
+    marginTop: 8,
+    textAlign: 'center',
   },
 });

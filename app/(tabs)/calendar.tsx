@@ -1,16 +1,35 @@
+// app/(tabs)/calendar.tsx
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  TouchableOpacity,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar as RNCalendar } from 'react-native-calendars';
+import { RefreshCw } from 'lucide-react-native';
 import { getWorkEntries } from '@/utils/storage';
-import { formatISODate, parseISODate, formatDateForDisplay } from '@/utils/dateUtils';
-import { getHoursIntensityColor } from '@/utils/statsCalculator';
+import {
+  formatISODate,
+  parseISODate,
+  formatDateForDisplay,
+} from '@/utils/dateUtils';
+import {
+  getHoursIntensityColor,
+  getBillingStatusColor,
+} from '@/utils/statsCalculator';
 import { WorkEntries, CalendarMarking } from '@/types';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import { COLORS, FONTS, SHADOWS } from '@/constants/theme';
+import CalendarLegend from '@/components/CalendarLegend';
+import Animated, { FadeIn, SlideInRight } from 'react-native-reanimated';
 
 export default function CalendarScreen() {
   const [entries, setEntries] = useState<WorkEntries>({});
-  const [selectedDate, setSelectedDate] = useState<string>(formatISODate(new Date()));
+  const [selectedDate, setSelectedDate] = useState<string>(
+    formatISODate(new Date())
+  );
   const [markedDates, setMarkedDates] = useState<CalendarMarking>({});
   const [loading, setLoading] = useState(true);
 
@@ -33,32 +52,41 @@ export default function CalendarScreen() {
 
   const updateMarkedDates = (workEntries: WorkEntries) => {
     const marked: CalendarMarking = {};
-    
+
     Object.entries(workEntries).forEach(([date, entry]) => {
       if (entry.hours > 0) {
-        const color = getHoursIntensityColor(entry.hours);
+        // Utilisation d'une couleur différente selon que les heures sont notées ou non
+        const color =
+          entry.isBilled !== false
+            ? getHoursIntensityColor(entry.hours)
+            : getBillingStatusColor(entry.hours);
+
         marked[date] = {
           customStyles: {
             container: {
               backgroundColor: color,
             },
             text: {
-              color: entry.hours >= 8 ? '#FFFFFF' : '#333333',
+              color:
+                (entry.hours >= 8 && entry.isBilled !== false) ||
+                (entry.hours >= 8 && entry.isBilled === false)
+                  ? '#FFFFFF'
+                  : '#333333',
             },
           },
         };
       }
     });
-    
+
     // Add selection styling for the selected date
     if (selectedDate) {
       marked[selectedDate] = {
         ...marked[selectedDate],
         selected: true,
-        selectedColor: '#3366FF',
+        selectedColor: COLORS.primary,
       };
     }
-    
+
     setMarkedDates(marked);
   };
 
@@ -71,49 +99,77 @@ export default function CalendarScreen() {
     if (!selectedDate || !entries[selectedDate]) {
       return (
         <View style={styles.noDataContainer}>
-          <Text style={styles.noDataText}>
-            Aucune donnée pour cette date
-          </Text>
+          <Text style={styles.noDataText}>Aucune donnée pour cette date</Text>
         </View>
       );
     }
 
     const entry = entries[selectedDate];
     return (
-      <View style={styles.dateInfoContainer}>
+      <Animated.View
+        entering={SlideInRight.duration(300)}
+        style={styles.dateInfoContainer}
+      >
         <Text style={styles.dateTitle}>
           {formatDateForDisplay(parseISODate(selectedDate))}
         </Text>
+
         <View style={styles.hoursContainer}>
           <Text style={styles.hoursLabel}>Heures travaillées:</Text>
           <Text style={styles.hoursValue}>{entry.hours.toFixed(1)}h</Text>
+          <View
+            style={[
+              styles.billingStatus,
+              {
+                backgroundColor:
+                  entry.isBilled !== false
+                    ? COLORS.primaryLightest
+                    : COLORS.secondaryLightest,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.billingStatusText,
+                {
+                  color:
+                    entry.isBilled !== false
+                      ? COLORS.primary
+                      : COLORS.secondary,
+                },
+              ]}
+            >
+              {entry.isBilled !== false ? 'Notées' : 'Non notées'}
+            </Text>
+          </View>
         </View>
+
         {entry.note && (
           <View style={styles.noteContainer}>
             <Text style={styles.noteLabel}>Note:</Text>
             <Text style={styles.noteText}>{entry.note}</Text>
           </View>
         )}
-      </View>
+      </Animated.View>
     );
   };
 
   const getCalendarTheme = () => ({
-    backgroundColor: '#FFFFFF',
-    calendarBackground: '#FFFFFF',
-    textSectionTitleColor: '#555555',
-    selectedDayBackgroundColor: '#3366FF',
-    selectedDayTextColor: '#FFFFFF',
-    todayTextColor: '#3366FF',
-    dayTextColor: '#333333',
+    backgroundColor: COLORS.card,
+    calendarBackground: COLORS.card,
+    textSectionTitleColor: COLORS.textLight,
+    selectedDayBackgroundColor: COLORS.primary,
+    selectedDayTextColor: COLORS.card,
+    todayTextColor: COLORS.primary,
+    dayTextColor: COLORS.text,
     textDisabledColor: '#C0C0C0',
-    dotColor: '#3366FF',
-    selectedDotColor: '#FFFFFF',
-    arrowColor: '#3366FF',
-    monthTextColor: '#333333',
-    textMonthFontFamily: 'Inter-Medium',
-    textDayFontFamily: 'Inter-Regular',
-    textDayHeaderFontFamily: 'Inter-Medium',
+    dotColor: COLORS.primary,
+    selectedDotColor: COLORS.card,
+    arrowColor: COLORS.primary,
+    monthTextColor: COLORS.text,
+    textMonthFontFamily: FONTS.medium,
+    textDayFontFamily: FONTS.regular,
+    textDayHeaderFontFamily: FONTS.medium,
     textMonthFontSize: 16,
     textDayFontSize: 14,
     textDayHeaderFontSize: 12,
@@ -122,41 +178,16 @@ export default function CalendarScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        <Animated.View 
-          entering={FadeIn.duration(500)}
-          style={styles.header}
-        >
+        <Animated.View entering={FadeIn.duration(500)} style={styles.header}>
           <Text style={styles.title}>Calendrier</Text>
-          <Text style={styles.subtitle}>
-            Visualisez vos heures de travail
-          </Text>
+          <Text style={styles.subtitle}>Visualisez vos heures de travail</Text>
         </Animated.View>
 
-        <View style={styles.legendContainer}>
-          <Text style={styles.legendTitle}>Légende :</Text>
-          <View style={styles.legendItems}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendColor, { backgroundColor: '#D1E8FF' }]} />
-              <Text style={styles.legendText}>{'< 4h'}</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendColor, { backgroundColor: '#92C1FF' }]} />
-              <Text style={styles.legendText}>{'< 6h'}</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendColor, { backgroundColor: '#5E9CFF' }]} />
-              <Text style={styles.legendText}>{'< 8h'}</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendColor, { backgroundColor: '#3366FF' }]} />
-              <Text style={styles.legendText}>{'>= 8h'}</Text>
-            </View>
-          </View>
-        </View>
+        <CalendarLegend />
 
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#3366FF" />
+            <ActivityIndicator size="large" color={COLORS.primary} />
           </View>
         ) : (
           <View style={styles.calendarContainer}>
@@ -167,14 +198,15 @@ export default function CalendarScreen() {
               onDayPress={(day) => handleDateSelect(day.dateString)}
               enableSwipeMonths={true}
             />
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={styles.refreshButton}
               onPress={loadEntries}
             >
+              <RefreshCw size={16} color={COLORS.primary} />
               <Text style={styles.refreshText}>Actualiser</Text>
             </TouchableOpacity>
-            
+
             {renderSelectedDateInfo()}
           </View>
         )}
@@ -186,54 +218,26 @@ export default function CalendarScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F8F9FC',
+    backgroundColor: COLORS.background,
   },
   container: {
     flex: 1,
-    padding: 16,
+    padding: 20,
   },
   header: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   title: {
-    fontFamily: 'Inter-Bold',
-    fontSize: 24,
-    color: '#333333',
+    fontFamily: FONTS.bold,
+    fontSize: 28,
+    color: COLORS.text,
     marginBottom: 4,
   },
   subtitle: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: FONTS.regular,
     fontSize: 16,
-    color: '#777777',
+    color: COLORS.textLight,
     marginBottom: 8,
-  },
-  legendContainer: {
-    marginBottom: 16,
-  },
-  legendTitle: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 14,
-    color: '#555555',
-    marginBottom: 8,
-  },
-  legendItems: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  legendColor: {
-    width: 16,
-    height: 16,
-    borderRadius: 4,
-    marginRight: 4,
-  },
-  legendText: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 12,
-    color: '#555555',
   },
   loadingContainer: {
     flex: 1,
@@ -241,79 +245,93 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   calendarContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 8,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    padding: 12,
+    ...SHADOWS.medium,
   },
   refreshButton: {
     alignSelf: 'center',
-    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
     paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: '#F0F4FF',
-    marginVertical: 12,
+    borderRadius: 12,
+    backgroundColor: COLORS.primaryLightest,
+    marginVertical: 16,
   },
   refreshText: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: FONTS.medium,
     fontSize: 14,
-    color: '#3366FF',
+    color: COLORS.primary,
+    marginLeft: 8,
   },
   dateInfoContainer: {
     borderTopWidth: 1,
-    borderTopColor: '#EEEEEE',
+    borderTopColor: COLORS.border,
     paddingTop: 16,
     marginTop: 8,
     paddingHorizontal: 8,
   },
   dateTitle: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 16,
-    color: '#333333',
-    marginBottom: 8,
+    fontFamily: FONTS.medium,
+    fontSize: 18,
+    color: COLORS.text,
+    marginBottom: 12,
+    textAlign: 'center',
   },
   hoursContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
+    justifyContent: 'center',
   },
   hoursLabel: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: FONTS.regular,
     fontSize: 14,
-    color: '#555555',
+    color: COLORS.textLight,
     marginRight: 8,
   },
   hoursValue: {
-    fontFamily: 'Inter-Bold',
-    fontSize: 16,
-    color: '#333333',
+    fontFamily: FONTS.bold,
+    fontSize: 18,
+    color: COLORS.text,
+    marginRight: 8,
+  },
+  billingStatus: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  billingStatusText: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
   },
   noteContainer: {
+    backgroundColor: COLORS.inputBackground,
+    padding: 12,
+    borderRadius: 12,
     marginTop: 8,
   },
   noteLabel: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: FONTS.medium,
     fontSize: 14,
-    color: '#555555',
+    color: COLORS.textLight,
     marginBottom: 4,
   },
   noteText: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: FONTS.regular,
     fontSize: 14,
-    color: '#333333',
+    color: COLORS.text,
   },
   noDataContainer: {
     padding: 16,
     alignItems: 'center',
   },
   noDataText: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: FONTS.regular,
     fontSize: 14,
-    color: '#999999',
+    color: COLORS.textLight,
     fontStyle: 'italic',
   },
 });

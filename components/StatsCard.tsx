@@ -1,6 +1,12 @@
+// components/StatsCard.tsx
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { COLORS, FONTS, SHADOWS } from '@/constants/theme';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
 interface StatsCardProps {
   title: string;
@@ -16,12 +22,12 @@ export default function StatsCard({
   value,
   unit = 'h',
   description,
-  color = '#3366FF',
+  color = COLORS.primary,
   animate = true,
 }: StatsCardProps) {
   // Animation for the value
   const progress = useSharedValue(0);
-  
+
   React.useEffect(() => {
     if (animate) {
       progress.value = 0;
@@ -32,13 +38,11 @@ export default function StatsCard({
       progress.value = 1;
     }
   }, [value, animate]);
-  
+
   const animatedValueStyle = useAnimatedStyle(() => {
     return {
       opacity: progress.value,
-      transform: [
-        { translateY: (1 - progress.value) * 10 }
-      ]
+      transform: [{ translateY: (1 - progress.value) * 10 }],
     };
   });
 
@@ -58,21 +62,17 @@ export default function StatsCard({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 16,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
+    ...SHADOWS.medium,
     borderLeftWidth: 4,
   },
   title: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 14,
-    color: '#777777',
+    fontFamily: FONTS.medium,
+    fontSize: 16,
+    color: COLORS.textLight,
     marginBottom: 8,
   },
   valueContainer: {
@@ -80,20 +80,20 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
   },
   value: {
-    fontFamily: 'Inter-Bold',
+    fontFamily: FONTS.bold,
     fontSize: 28,
-    color: '#333333',
+    color: COLORS.text,
   },
   unit: {
-    fontFamily: 'Inter-Medium',
+    fontFamily: FONTS.medium,
     fontSize: 16,
-    color: '#555555',
+    color: COLORS.textLight,
     marginLeft: 4,
   },
   description: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: FONTS.regular,
     fontSize: 12,
-    color: '#999999',
+    color: COLORS.textLight,
     marginTop: 8,
   },
 });

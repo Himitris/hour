@@ -2,6 +2,7 @@ export type WorkEntry = {
   date: string; // ISO format 'YYYY-MM-DD'
   hours: number;
   note?: string;
+  isBilled: boolean;
 };
 
 export type WorkEntries = Record<string, WorkEntry>;

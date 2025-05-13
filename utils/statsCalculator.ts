@@ -29,6 +29,97 @@ export const calculateWeeklyHours = (
   }, 0);
 };
 
+export const calculateDailyBilledHours = (
+  entries: WorkEntries,
+  date: Date
+): number => {
+  const dateStr = formatISODate(date);
+  return entries[dateStr]?.isBilled === true ? entries[dateStr]?.hours || 0 : 0;
+};
+
+export const calculateDailyUnbilledHours = (
+  entries: WorkEntries,
+  date: Date
+): number => {
+  const dateStr = formatISODate(date);
+  return entries[dateStr]?.isBilled === false
+    ? entries[dateStr]?.hours || 0
+    : 0;
+};
+
+export const calculateWeeklyBilledHours = (
+  entries: WorkEntries,
+  date: Date = new Date()
+): number => {
+  const startOfWeek = getStartOfWeek(date);
+  const endOfWeek = getEndOfWeek(date);
+  const datesInWeek = getDatesInRange(startOfWeek, endOfWeek);
+
+  return datesInWeek.reduce((total, dateStr) => {
+    return (
+      total +
+      (entries[dateStr]?.isBilled === true ? entries[dateStr]?.hours || 0 : 0)
+    );
+  }, 0);
+};
+
+export const calculateWeeklyUnbilledHours = (
+  entries: WorkEntries,
+  date: Date = new Date()
+): number => {
+  const startOfWeek = getStartOfWeek(date);
+  const endOfWeek = getEndOfWeek(date);
+  const datesInWeek = getDatesInRange(startOfWeek, endOfWeek);
+
+  return datesInWeek.reduce((total, dateStr) => {
+    return (
+      total +
+      (entries[dateStr]?.isBilled === false ? entries[dateStr]?.hours || 0 : 0)
+    );
+  }, 0);
+};
+
+export const calculateMonthlyBilledHours = (
+  entries: WorkEntries,
+  date: Date = new Date()
+): number => {
+  const startOfMonth = getStartOfMonth(date);
+  const endOfMonth = getEndOfMonth(date);
+  const datesInMonth = getDatesInRange(startOfMonth, endOfMonth);
+
+  return datesInMonth.reduce((total, dateStr) => {
+    return (
+      total +
+      (entries[dateStr]?.isBilled === true ? entries[dateStr]?.hours || 0 : 0)
+    );
+  }, 0);
+};
+
+export const calculateMonthlyUnbilledHours = (
+  entries: WorkEntries,
+  date: Date = new Date()
+): number => {
+  const startOfMonth = getStartOfMonth(date);
+  const endOfMonth = getEndOfMonth(date);
+  const datesInMonth = getDatesInRange(startOfMonth, endOfMonth);
+
+  return datesInMonth.reduce((total, dateStr) => {
+    return (
+      total +
+      (entries[dateStr]?.isBilled === false ? entries[dateStr]?.hours || 0 : 0)
+    );
+  }, 0);
+};
+
+export const getBillingStatusColor = (hours: number): string => {
+  // Couleurs pour les heures non notées (dans des tons différents, peut-être verdâtres)
+  if (hours === 0) return '#EEEEEE'; // No hours
+  if (hours < 4) return '#D1FFE8'; // Light green
+  if (hours < 6) return '#92FFCB'; // Medium green
+  if (hours < 8) return '#5EFF9C'; // Darker green
+  return '#33FF66'; // Very dark green for many hours
+};
+
 export const calculateMonthlyHours = (
   entries: WorkEntries,
   date: Date = new Date()
