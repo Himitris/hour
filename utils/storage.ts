@@ -8,17 +8,31 @@ const PAYMENTS_STORAGE_KEY = 'payments_data';
 export const storeWorkEntry = async (entry: WorkEntry): Promise<void> => {
   try {
     const existingData = await getWorkEntries();
-    const updatedData = {
-      ...existingData,
-      [entry.date]: entry,
-    };
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedData));
+
+    // Si les heures sont 0, supprimer l'entrée au lieu de l'enregistrer
+    if (entry.hours === 0) {
+      // Vérifier si l'entrée existe avant de la supprimer
+      if (existingData[entry.date]) {
+        const { [entry.date]: removedEntry, ...remainingEntries } =
+          existingData;
+        await AsyncStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify(remainingEntries)
+        );
+      }
+    } else {
+      // Sinon, enregistrer normalement
+      const updatedData = {
+        ...existingData,
+        [entry.date]: entry,
+      };
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedData));
+    }
   } catch (error) {
     console.error('Error storing work entry:', error);
     throw error;
   }
 };
-
 export const getWorkEntries = async (): Promise<WorkEntries> => {
   try {
     const jsonValue = await AsyncStorage.getItem(STORAGE_KEY);

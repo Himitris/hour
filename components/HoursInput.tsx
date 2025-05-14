@@ -80,13 +80,11 @@ export default function HoursInput({ date, onSave }: HoursInputProps) {
     }
   };
 
+  // Dans le fichier components/HoursInput.tsx
+  // Modifier la fonction handleSave pour permettre la sauvegarde de 0 heure
+
   const handleSave = async () => {
     Keyboard.dismiss();
-
-    if (hours === 0 && minutes === 0) {
-      Alert.alert('Erreur', "Veuillez entrer un nombre d'heures valide");
-      return;
-    }
 
     // Convertir les heures et minutes en nombre décimal
     const numHours = hours + minutes / 60;
