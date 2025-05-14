@@ -1,3 +1,4 @@
+// utils/statsCalculator.ts
 import { WorkEntries } from '@/types';
 import {
   formatISODate,
@@ -34,7 +35,9 @@ export const calculateDailyBilledHours = (
   date: Date
 ): number => {
   const dateStr = formatISODate(date);
-  return entries[dateStr]?.isBilled === true ? entries[dateStr]?.hours || 0 : 0;
+  return entries[dateStr]?.isBilled !== false
+    ? entries[dateStr]?.hours || 0
+    : 0;
 };
 
 export const calculateDailyUnbilledHours = (
@@ -58,7 +61,7 @@ export const calculateWeeklyBilledHours = (
   return datesInWeek.reduce((total, dateStr) => {
     return (
       total +
-      (entries[dateStr]?.isBilled === true ? entries[dateStr]?.hours || 0 : 0)
+      (entries[dateStr]?.isBilled !== false ? entries[dateStr]?.hours || 0 : 0)
     );
   }, 0);
 };
@@ -90,7 +93,7 @@ export const calculateMonthlyBilledHours = (
   return datesInMonth.reduce((total, dateStr) => {
     return (
       total +
-      (entries[dateStr]?.isBilled === true ? entries[dateStr]?.hours || 0 : 0)
+      (entries[dateStr]?.isBilled !== false ? entries[dateStr]?.hours || 0 : 0)
     );
   }, 0);
 };
@@ -142,11 +145,11 @@ export const calculateWeeklyAverage = (
   const startOfWeek = getStartOfWeek(date);
   const endOfWeek = getEndOfWeek(date);
   const datesInWeek = getDatesInRange(startOfWeek, endOfWeek);
-  
-  const daysWorked = datesInWeek.filter(dateStr => 
-    entries[dateStr] && entries[dateStr].hours > 0
+
+  const daysWorked = datesInWeek.filter(
+    (dateStr) => entries[dateStr] && entries[dateStr].hours > 0
   ).length;
-  
+
   return daysWorked > 0 ? totalHours / daysWorked : 0;
 };
 
@@ -159,11 +162,11 @@ export const calculateMonthlyAverage = (
   const startOfMonth = getStartOfMonth(date);
   const endOfMonth = getEndOfMonth(date);
   const datesInMonth = getDatesInRange(startOfMonth, endOfMonth);
-  
-  const daysWorked = datesInMonth.filter(dateStr => 
-    entries[dateStr] && entries[dateStr].hours > 0
+
+  const daysWorked = datesInMonth.filter(
+    (dateStr) => entries[dateStr] && entries[dateStr].hours > 0
   ).length;
-  
+
   return daysWorked > 0 ? totalHours / daysWorked : 0;
 };
 

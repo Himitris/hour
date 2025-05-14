@@ -26,8 +26,8 @@ export default function WeeklyHoursChart({ entries }: WeeklyHoursChartProps) {
   const chartData = useMemo(() => {
     return datesInWeek.map((dateStr, index) => {
       const entry = entries[dateStr];
-      const billedHours = entry?.isBilled ? entry.hours : 0;
-      const unbilledHours = entry?.isBilled === false ? entry.hours : 0;
+      const billedHours = entry?.isBilled !== false ? entry?.hours || 0 : 0;
+      const unbilledHours = entry?.isBilled === false ? entry?.hours || 0 : 0;
       const total = billedHours + unbilledHours;
 
       return {
