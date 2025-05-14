@@ -8,12 +8,18 @@ import {
   ActivityIndicator,
   RefreshControl,
   TouchableOpacity,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { RefreshCw, AlertCircle } from 'lucide-react-native';
+import {
+  RefreshCw,
+  AlertCircle,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react-native';
 import DetailedStatsCard from '@/components/DetailedStatsCard';
 import StatsCard from '@/components/StatsCard';
-import { getWorkEntries } from '@/utils/storage';
 import { WorkEntries } from '@/types';
 import {
   calculateDailyHours,
@@ -28,14 +34,33 @@ import {
   calculateWeeklyAverage,
   calculateMonthlyAverage,
 } from '@/utils/statsCalculator';
+import {
+  formatDateForDisplay,
+  getStartOfWeek,
+  getEndOfWeek,
+  getStartOfMonth,
+  getEndOfMonth,
+  formatISODate,
+} from '@/utils/dateUtils';
 import { COLORS, FONTS, SHADOWS } from '@/constants/theme';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeInUp,
+} from 'react-native-reanimated';
+import { useAppContext } from '@/contexts/AppContext';
+import WeeklyHoursChart from '@/components/WeeklyHoursChart';
 
 export default function StatsScreen() {
-  const [entries, setEntries] = useState<WorkEntries>({});
-  const [loading, setLoading] = useState(true);
+  const {
+    workEntries,
+    loading: contextLoading,
+    refreshData,
+    lastUpdated,
+  } = useAppContext();
   const [refreshing, setRefreshing] = useState(false);
   const [showTips, setShowTips] = useState(false);
+  const [showPeriodDetails, setShowPeriodDetails] = useState(false);
   const [stats, setStats] = useState({
     daily: 0,
     dailyBilled: 0,
@@ -50,23 +75,17 @@ export default function StatsScreen() {
     monthlyAvg: 0,
   });
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  // Dates pour les périodes
+  const today = new Date();
+  const startOfWeek = getStartOfWeek(today);
+  const endOfWeek = getEndOfWeek(today);
+  const startOfMonth = getStartOfMonth(today);
+  const endOfMonth = getEndOfMonth(today);
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      const workEntries = await getWorkEntries();
-      setEntries(workEntries);
-      calculateStats(workEntries);
-    } catch (error) {
-      console.error('Error loading stats data:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+  // Recalculer les statistiques lorsque les entrées changent ou lors d'un rafraîchissement
+  useEffect(() => {
+    calculateStats(workEntries);
+  }, [workEntries, lastUpdated]);
 
   const calculateStats = (workEntries: WorkEntries) => {
     const today = new Date();
@@ -103,11 +122,48 @@ export default function StatsScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    await refreshData();
+    setRefreshing(false);
   };
 
   const toggleTips = () => {
     setShowTips(!showTips);
+  };
+
+  const togglePeriodDetails = () => {
+    setShowPeriodDetails(!showPeriodDetails);
+  };
+
+  // Formatage simplifié pour l'affichage des périodes
+  const formatShortDate = (date: Date): string => {
+    return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  };
+
+  // Calculer le nombre de jours travaillés ce mois
+  const daysWorkedThisMonth = Object.entries(workEntries).filter(
+    ([date, entry]) => {
+      const entryDate = new Date(date);
+      return (
+        entryDate >= startOfMonth && entryDate <= endOfMonth && entry.hours > 0
+      );
+    }
+  ).length;
+
+  // Calculer le ratio des heures notées/non notées
+  const getBilledPercentage = () => {
+    if (stats.monthlyBilled === 0 && stats.monthlyUnbilled === 0) return 0;
+    return Math.round(
+      (stats.monthlyBilled / (stats.monthlyBilled + stats.monthlyUnbilled)) *
+        100
+    );
+  };
+
+  const getUnbilledPercentage = () => {
+    if (stats.monthlyBilled === 0 && stats.monthlyUnbilled === 0) return 0;
+    return Math.round(
+      (stats.monthlyUnbilled / (stats.monthlyBilled + stats.monthlyUnbilled)) *
+        100
+    );
   };
 
   return (
@@ -126,14 +182,49 @@ export default function StatsScreen() {
         <Animated.View entering={FadeIn.duration(500)} style={styles.header}>
           <View style={styles.titleContainer}>
             <Text style={styles.title}>Statistiques</Text>
-            <TouchableOpacity style={styles.tipsButton} onPress={toggleTips}>
-              <AlertCircle size={20} color={COLORS.primary} />
-            </TouchableOpacity>
+            <View style={styles.headerButtons}>
+              <TouchableOpacity
+                style={[styles.iconButton, styles.calendarButton]}
+                onPress={togglePeriodDetails}
+              >
+                <Calendar size={18} color={COLORS.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.tipsButton} onPress={toggleTips}>
+                <AlertCircle size={18} color={COLORS.primary} />
+              </TouchableOpacity>
+            </View>
           </View>
           <Text style={styles.subtitle}>Analysez votre temps de travail</Text>
+
+          {showPeriodDetails && (
+            <Animated.View
+              entering={FadeInUp.duration(300)}
+              style={styles.periodDetailBox}
+            >
+              <View style={styles.periodDetailRow}>
+                <Text style={styles.periodLabel}>Aujourd'hui:</Text>
+                <Text style={styles.periodValue}>
+                  {formatDateForDisplay(today)}
+                </Text>
+              </View>
+              <View style={styles.periodDetailRow}>
+                <Text style={styles.periodLabel}>Semaine:</Text>
+                <Text style={styles.periodValue}>
+                  {formatShortDate(startOfWeek)} - {formatShortDate(endOfWeek)}
+                </Text>
+              </View>
+              <View style={styles.periodDetailRow}>
+                <Text style={styles.periodLabel}>Mois:</Text>
+                <Text style={styles.periodValue}>
+                  {formatShortDate(startOfMonth)} -{' '}
+                  {formatShortDate(endOfMonth)}
+                </Text>
+              </View>
+            </Animated.View>
+          )}
         </Animated.View>
 
-        {loading ? (
+        {contextLoading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={COLORS.primary} />
           </View>
@@ -155,8 +246,18 @@ export default function StatsScreen() {
                 totalValue={stats.weekly}
                 billedValue={stats.weeklyBilled}
                 unbilledValue={stats.weeklyUnbilled}
-                description="Total des heures cette semaine"
+                description={`Total des heures (${formatShortDate(
+                  startOfWeek
+                )} - ${formatShortDate(endOfWeek)})`}
               />
+            </Animated.View>
+
+            {/* Composant graphique pour la semaine */}
+            <Animated.View
+              entering={FadeInDown.delay(250).duration(500)}
+              style={styles.chartContainer}
+            >
+              <WeeklyHoursChart entries={workEntries} />
             </Animated.View>
 
             <Animated.View entering={FadeInDown.delay(300).duration(500)}>
@@ -165,7 +266,9 @@ export default function StatsScreen() {
                 totalValue={stats.monthly}
                 billedValue={stats.monthlyBilled}
                 unbilledValue={stats.monthlyUnbilled}
-                description="Total des heures ce mois"
+                description={`Total des heures (${formatShortDate(
+                  startOfMonth
+                )} - ${formatShortDate(endOfMonth)})`}
               />
             </Animated.View>
 
@@ -199,9 +302,43 @@ export default function StatsScreen() {
               </Animated.View>
             </View>
 
+            {/* Carte récapitulative */}
+            <Animated.View entering={FadeInDown.delay(500).duration(500)}>
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryTitle}>
+                  Récapitulatif du travail
+                </Text>
+
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>
+                    Total jours travaillés ce mois:
+                  </Text>
+                  <Text style={styles.summaryValue}>
+                    {daysWorkedThisMonth} jours
+                  </Text>
+                </View>
+
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>
+                    Ratio heures notées/non notées:
+                  </Text>
+                  <Text style={styles.summaryValue}>
+                    {getBilledPercentage()}% / {getUnbilledPercentage()}%
+                  </Text>
+                </View>
+
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Moyenne hebdomadaire:</Text>
+                  <Text style={styles.summaryValue}>
+                    {(stats.monthly / 4).toFixed(1)}h
+                  </Text>
+                </View>
+              </View>
+            </Animated.View>
+
             {showTips && (
               <Animated.View
-                entering={FadeInDown.delay(500).duration(300)}
+                entering={FadeInDown.delay(550).duration(300)}
                 style={styles.tipsBox}
               >
                 <Text style={styles.tipsTitle}>
@@ -220,7 +357,16 @@ export default function StatsScreen() {
                   travaillés
                 </Text>
                 <Text style={styles.tipsText}>
-                  • Tirez vers le bas pour actualiser vos données
+                  • Le début de semaine est fixé au lundi
+                </Text>
+                <Text style={styles.tipsText}>
+                  • Le début de mois est fixé au 1er jour du mois
+                </Text>
+                <Text style={styles.tipsText}>
+                  • Les modifications de saisie sont automatiquement répercutées
+                </Text>
+                <Text style={styles.tipsText}>
+                  • Tirez vers le bas pour actualiser manuellement
                 </Text>
                 <TouchableOpacity
                   style={styles.refreshStatsButton}
@@ -261,21 +407,56 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 4,
   },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   title: {
     fontFamily: FONTS.bold,
     fontSize: 28,
     color: COLORS.text,
   },
+  iconButton: {
+    padding: 8,
+    borderRadius: 20,
+    marginLeft: 8,
+  },
+  calendarButton: {
+    backgroundColor: COLORS.primaryLightest,
+  },
   tipsButton: {
     padding: 8,
     borderRadius: 20,
     backgroundColor: COLORS.primaryLightest,
+    marginLeft: 8,
   },
   subtitle: {
     fontFamily: FONTS.regular,
     fontSize: 16,
     color: COLORS.textLight,
     marginBottom: 8,
+  },
+  periodDetailBox: {
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 10,
+    ...SHADOWS.small,
+  },
+  periodDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  periodLabel: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: COLORS.textLight,
+  },
+  periodValue: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: COLORS.text,
   },
   loadingContainer: {
     padding: 40,
@@ -284,6 +465,13 @@ const styles = StyleSheet.create({
   },
   statsContainer: {
     paddingBottom: 16,
+  },
+  chartContainer: {
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    ...SHADOWS.medium,
   },
   sectionTitle: {
     fontFamily: FONTS.medium,
@@ -298,6 +486,41 @@ const styles = StyleSheet.create({
   },
   averageCard: {
     width: '48%',
+  },
+  summaryCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 20,
+    marginBottom: 20,
+    ...SHADOWS.medium,
+  },
+  summaryTitle: {
+    fontFamily: FONTS.medium,
+    fontSize: 16,
+    color: COLORS.text,
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    paddingBottom: 8,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    paddingVertical: 4,
+  },
+  summaryLabel: {
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    color: COLORS.textLight,
+    width: '60%',
+  },
+  summaryValue: {
+    fontFamily: FONTS.bold,
+    fontSize: 14,
+    color: COLORS.text,
+    textAlign: 'right',
   },
   tipsBox: {
     backgroundColor: COLORS.primary,

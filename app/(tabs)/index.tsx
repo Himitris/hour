@@ -16,12 +16,14 @@ import { getWorkEntryByDate } from '@/utils/storage';
 import { formatISODate } from '@/utils/dateUtils';
 import { COLORS, FONTS } from '@/constants/theme';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import { useAppContext } from '@/contexts/AppContext';
 
 export default function InputScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [showInfo, setShowInfo] = useState(false);
+  const { refreshData } = useAppContext();
 
   useEffect(() => {
     checkForEntry();
@@ -44,8 +46,11 @@ export default function InputScreen() {
   };
 
   const handleSave = () => {
-    // Trigger a refresh
+    // Trigger a refresh locally
     setRefreshKey((prevKey) => prevKey + 1);
+
+    // Also refresh global data
+    refreshData();
   };
 
   const toggleInfo = () => {

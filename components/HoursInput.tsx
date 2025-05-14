@@ -20,6 +20,7 @@ import Animated, {
 import { storeWorkEntry, getWorkEntryByDate } from '@/utils/storage';
 import { formatISODate } from '@/utils/dateUtils';
 import { COLORS, FONTS, SHADOWS } from '@/constants/theme';
+import { useAppContext } from '@/contexts/AppContext';
 
 interface HoursInputProps {
   date: Date;
@@ -33,6 +34,7 @@ export default function HoursInput({ date, onSave }: HoursInputProps) {
   const [isBilled, setIsBilled] = useState(true); // Par défaut, les heures sont notées
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const { refreshData } = useAppContext(); // Utilisation du contexte
 
   const buttonScale = useSharedValue(1);
 
@@ -112,6 +114,9 @@ export default function HoursInput({ date, onSave }: HoursInputProps) {
         note: note.trim() || undefined,
         isBilled: isBilled,
       });
+
+      // Rafraîchir les données dans le contexte
+      await refreshData();
 
       // Success animation and notification
       onSave();

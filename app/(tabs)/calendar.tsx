@@ -11,7 +11,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar as RNCalendar } from 'react-native-calendars';
 import { RefreshCw } from 'lucide-react-native';
-import { getWorkEntries } from '@/utils/storage';
 import {
   formatISODate,
   parseISODate,
@@ -21,35 +20,29 @@ import {
   getHoursIntensityColor,
   getBillingStatusColor,
 } from '@/utils/statsCalculator';
-import { WorkEntries, CalendarMarking } from '@/types';
+import { CalendarMarking, WorkEntries } from '@/types';
 import { COLORS, FONTS } from '@/constants/theme';
 import CalendarLegend from '@/components/CalendarLegend';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import { useAppContext } from '@/contexts/AppContext';
 
 export default function CalendarScreen() {
-  const [entries, setEntries] = useState<WorkEntries>({});
+  const {
+    workEntries,
+    loading: contextLoading,
+    refreshData,
+    lastUpdated,
+  } = useAppContext();
   const [selectedDate, setSelectedDate] = useState<string>(
     formatISODate(new Date())
   );
   const [markedDates, setMarkedDates] = useState<CalendarMarking>({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
+  // Effectuer une mise à jour lorsque les entrées du contexte changent ou lorsque lastUpdated change
   useEffect(() => {
-    loadEntries();
-  }, []);
-
-  const loadEntries = async () => {
-    setLoading(true);
-    try {
-      const workEntries = await getWorkEntries();
-      setEntries(workEntries);
-      updateMarkedDates(workEntries);
-    } catch (error) {
-      console.error('Error loading work entries for calendar:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    updateMarkedDates(workEntries);
+  }, [workEntries, lastUpdated]);
 
   const updateMarkedDates = (workEntries: WorkEntries) => {
     const marked: CalendarMarking = {};
@@ -103,7 +96,7 @@ export default function CalendarScreen() {
     // Reconstruire complètement les marquages avec la nouvelle date sélectionnée
     const marked: CalendarMarking = {};
 
-    Object.entries(entries).forEach(([dateStr, entry]) => {
+    Object.entries(workEntries).forEach(([dateStr, entry]) => {
       if (entry.hours > 0) {
         const color =
           entry.isBilled !== false
@@ -159,7 +152,7 @@ export default function CalendarScreen() {
   });
 
   const renderSelectedDateInfo = () => {
-    if (!selectedDate || !entries[selectedDate]) {
+    if (!selectedDate || !workEntries[selectedDate]) {
       return (
         <View style={styles.noDataContainer}>
           <Text style={styles.noDataText}>Aucune donnée pour cette date</Text>
@@ -167,7 +160,7 @@ export default function CalendarScreen() {
       );
     }
 
-    const entry = entries[selectedDate];
+    const entry = workEntries[selectedDate];
     return (
       <Animated.View
         entering={FadeIn.duration(300)}
@@ -223,6 +216,14 @@ export default function CalendarScreen() {
     );
   };
 
+  // Utiliser refreshData du contexte au lieu de loadEntries local
+  const handleRefresh = () => {
+    setLoading(true);
+    refreshData().finally(() => {
+      setLoading(false);
+    });
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
@@ -232,13 +233,16 @@ export default function CalendarScreen() {
       >
         <Animated.View entering={FadeIn.duration(300)} style={styles.header}>
           <Text style={styles.title}>Calendrier</Text>
-          <TouchableOpacity style={styles.refreshButton} onPress={loadEntries}>
+          <TouchableOpacity
+            style={styles.refreshButton}
+            onPress={handleRefresh}
+          >
             <RefreshCw size={14} color={COLORS.primary} />
             <Text style={styles.refreshText}>Actualiser</Text>
           </TouchableOpacity>
         </Animated.View>
 
-        {loading ? (
+        {loading || contextLoading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={COLORS.primary} />
           </View>
@@ -254,7 +258,7 @@ export default function CalendarScreen() {
                 hideExtraDays={true}
                 // Paramètres pour rendre le calendrier plus compact
                 style={styles.calendar}
-                firstDay={1} 
+                firstDay={1}
               />
 
               <View style={styles.legendContainer}>

@@ -15,38 +15,28 @@ import { PlusCircle, RefreshCw, Trash2 } from 'lucide-react-native';
 import DateSelector from '@/components/DateSelector';
 import { COLORS, FONTS, SHADOWS } from '@/constants/theme';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { getPayments, storePayment, deletePayment } from '@/utils/storage';
+import { storePayment, deletePayment } from '@/utils/storage';
 import { formatDateForDisplay, formatISODate } from '@/utils/dateUtils';
 import { Payment } from '@/types';
+import { useAppContext } from '@/contexts/AppContext';
 
 export default function PaymentsScreen() {
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    payments,
+    loading: contextLoading,
+    refreshData,
+    lastUpdated,
+  } = useAppContext();
+  const [loading, setLoading] = useState(false);
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(new Date());
   const [note, setNote] = useState('');
-  const [refreshing, setRefreshing] = useState(false);
 
+  // On peut aussi ajouter un useEffect qui réagit aux changements du contexte si nécessaire
   useEffect(() => {
-    loadPayments();
-  }, []);
-
-  const loadPayments = async () => {
-    setLoading(true);
-    try {
-      const paymentsData = await getPayments();
-      // Trier les paiements par date (plus récent en premier)
-      const sortedPayments = paymentsData.sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-      );
-      setPayments(sortedPayments);
-    } catch (error) {
-      console.error('Erreur lors du chargement des paiements:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+    // Ce useEffect pourrait être utilisé pour effectuer des actions lorsque les paiements changent
+    // Par exemple, mettre à jour un état local basé sur les paiements
+  }, [payments, lastUpdated]);
 
   const handleSavePayment = async () => {
     if (!amount || isNaN(parseFloat(amount))) {
@@ -55,6 +45,7 @@ export default function PaymentsScreen() {
     }
 
     try {
+      setLoading(true);
       const paymentData: Payment = {
         id: Date.now().toString(), // Identifiant unique basé sur l'horodatage
         amount: parseFloat(amount),
@@ -68,13 +59,15 @@ export default function PaymentsScreen() {
       setAmount('');
       setNote('');
 
-      // Recharger la liste des paiements
-      await loadPayments();
+      // Recharger la liste des paiements via le contexte global
+      await refreshData();
 
       Alert.alert('Succès', 'Paiement enregistré avec succès!');
     } catch (error) {
       console.error("Erreur lors de l'enregistrement du paiement:", error);
       Alert.alert('Erreur', "Une erreur est survenue lors de l'enregistrement");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -89,14 +82,18 @@ export default function PaymentsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              setLoading(true);
               await deletePayment(id);
-              await loadPayments();
+              // Utiliser refreshData du contexte pour mettre à jour les données globalement
+              await refreshData();
             } catch (error) {
               console.error(
                 'Erreur lors de la suppression du paiement:',
                 error
               );
               Alert.alert('Erreur', 'Impossible de supprimer le paiement');
+            } finally {
+              setLoading(false);
             }
           },
         },
@@ -106,6 +103,17 @@ export default function PaymentsScreen() {
 
   const handleDateChange = (newDate: Date) => {
     setDate(newDate);
+  };
+
+  const handleRefresh = async () => {
+    setLoading(true);
+    try {
+      await refreshData();
+    } catch (error) {
+      console.error("Erreur lors de l'actualisation:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const renderPaymentItem = ({ item }: { item: Payment }) => (
@@ -126,12 +134,20 @@ export default function PaymentsScreen() {
     </Animated.View>
   );
 
+  // Tri des paiements par date (plus récent en premier)
+  const sortedPayments = [...payments].sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <Animated.View entering={FadeIn.duration(300)} style={styles.header}>
           <Text style={styles.title}>Paiements</Text>
-          <TouchableOpacity style={styles.refreshButton} onPress={loadPayments}>
+          <TouchableOpacity
+            style={styles.refreshButton}
+            onPress={handleRefresh}
+          >
             <RefreshCw size={14} color={COLORS.primary} />
             <Text style={styles.refreshText}>Actualiser</Text>
           </TouchableOpacity>
@@ -152,6 +168,7 @@ export default function PaymentsScreen() {
               placeholder="Ex: 250.00"
               keyboardType="numeric"
               maxLength={10}
+              editable={!loading && !contextLoading}
             />
           </View>
 
@@ -169,32 +186,39 @@ export default function PaymentsScreen() {
               placeholder="Ajouter une note..."
               multiline
               maxLength={100}
+              editable={!loading && !contextLoading}
             />
           </View>
 
           <TouchableOpacity
-            style={styles.addButton}
+            style={[
+              styles.addButton,
+              (loading || contextLoading) && styles.disabledButton,
+            ]}
             onPress={handleSavePayment}
+            disabled={loading || contextLoading}
           >
             <PlusCircle size={18} color={COLORS.card} />
-            <Text style={styles.addButtonText}>Ajouter le paiement</Text>
+            <Text style={styles.addButtonText}>
+              {loading ? 'Enregistrement...' : 'Ajouter le paiement'}
+            </Text>
           </TouchableOpacity>
         </Animated.View>
 
         <View style={styles.paymentsList}>
           <Text style={styles.paymentsTitle}>Historique des paiements</Text>
 
-          {loading ? (
+          {loading || contextLoading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={COLORS.primary} />
             </View>
-          ) : payments.length === 0 ? (
+          ) : sortedPayments.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyText}>Aucun paiement enregistré</Text>
             </View>
           ) : (
             <FlatList
-              data={payments}
+              data={sortedPayments}
               renderItem={renderPaymentItem}
               keyExtractor={(item) => item.id}
               contentContainerStyle={styles.listContent}
@@ -292,6 +316,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 12,
     ...SHADOWS.button,
+  },
+  disabledButton: {
+    backgroundColor: COLORS.primaryLight,
+    opacity: 0.7,
   },
   addButtonText: {
     color: COLORS.card,
