@@ -7,11 +7,11 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
+import { formatHoursToDisplay } from '@/utils/timeFormatter';
 
 interface StatsCardProps {
   title: string;
   value: number;
-  unit?: string;
   description?: string;
   color?: string;
   animate?: boolean;
@@ -20,7 +20,6 @@ interface StatsCardProps {
 export default function StatsCard({
   title,
   value,
-  unit = 'h',
   description,
   color = COLORS.primary,
   animate = true,
@@ -51,9 +50,8 @@ export default function StatsCard({
       <Text style={styles.title}>{title}</Text>
       <View style={styles.valueContainer}>
         <Animated.Text style={[styles.value, animatedValueStyle]}>
-          {value.toFixed(1)}
+          {formatHoursToDisplay(value)}
         </Animated.Text>
-        <Text style={styles.unit}>{unit}</Text>
       </View>
       {description && <Text style={styles.description}>{description}</Text>}
     </View>
@@ -83,12 +81,6 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.bold,
     fontSize: 28,
     color: COLORS.text,
-  },
-  unit: {
-    fontFamily: FONTS.medium,
-    fontSize: 16,
-    color: COLORS.textLight,
-    marginLeft: 4,
   },
   description: {
     fontFamily: FONTS.regular,

@@ -6,6 +6,7 @@ import {
   Text,
   ActivityIndicator,
   TouchableOpacity,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Info } from 'lucide-react-native';
@@ -53,17 +54,24 @@ export default function InputScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <Animated.View entering={FadeIn.duration(300)} style={styles.header}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        <Animated.View
+          entering={FadeIn.duration(300)}
+          style={styles.headerContainer}
+        >
           <View style={styles.titleContainer}>
-            <Text style={styles.title}>Saisie du temps</Text>
+            <Text style={styles.title}>Saisie</Text>
             <TouchableOpacity style={styles.infoButton} onPress={toggleInfo}>
-              <Info size={18} color={COLORS.primary} />
+              <Info size={16} color={COLORS.primary} />
             </TouchableOpacity>
           </View>
-        </Animated.View>
 
-        <DateSelector date={selectedDate} onDateChange={handleDateChange} />
+          <DateSelector date={selectedDate} onDateChange={handleDateChange} />
+        </Animated.View>
 
         {loading ? (
           <View style={styles.loadingContainer}>
@@ -86,13 +94,21 @@ export default function InputScreen() {
           >
             <Text style={styles.infoTitle}>Comment utiliser</Text>
             <Text style={styles.infoText}>
-              • Ajoutez vos heures et notez si elles sont facturables • Naviguez
-              entre les jours avec les flèches • Ajoutez une note optionnelle
-              pour votre activité
+              • Utilisez + et - pour ajuster les heures
+            </Text>
+            <Text style={styles.infoText}>
+              • Touchez l'affichage des heures pour basculer entre 0 et 30
+              minutes
+            </Text>
+            <Text style={styles.infoText}>
+              • Indiquez si les heures sont notées ou non
+            </Text>
+            <Text style={styles.infoText}>
+              • Naviguez entre les jours avec les flèches
             </Text>
           </Animated.View>
         )}
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -104,15 +120,19 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    padding: 16,
   },
-  header: {
+  contentContainer: {
+    padding: 16,
+    paddingBottom: 100, // Espace pour le tabBar
+  },
+  headerContainer: {
     marginBottom: 12,
   },
   titleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: 10,
   },
   title: {
     fontFamily: FONTS.bold,
@@ -120,23 +140,23 @@ const styles = StyleSheet.create({
     color: COLORS.text,
   },
   infoButton: {
-    padding: 8,
-    borderRadius: 16,
+    padding: 6,
+    borderRadius: 12,
     backgroundColor: COLORS.primaryLightest,
   },
   loadingContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 200,
   },
   inputWrapper: {
-    flex: 1,
+    marginBottom: 16,
   },
   infoContainer: {
     backgroundColor: COLORS.card,
     borderRadius: 12,
     padding: 12,
-    marginTop: 8,
     borderLeftWidth: 3,
     borderLeftColor: COLORS.primary,
   },
@@ -150,6 +170,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     fontSize: 12,
     color: COLORS.textLight,
-    lineHeight: 16,
+    lineHeight: 18,
+    marginBottom: 2,
   },
 });

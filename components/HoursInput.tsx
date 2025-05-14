@@ -10,15 +10,16 @@ import {
   Keyboard,
   Switch,
 } from 'react-native';
-import { Save } from 'lucide-react-native';
+import { Save, ChevronUp, ChevronDown, Clock } from 'lucide-react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
+  FadeIn,
 } from 'react-native-reanimated';
 import { storeWorkEntry, getWorkEntryByDate } from '@/utils/storage';
 import { formatISODate } from '@/utils/dateUtils';
-import { COLORS, FONTS } from '@/constants/theme';
+import { COLORS, FONTS, SHADOWS } from '@/constants/theme';
 
 interface HoursInputProps {
   date: Date;
@@ -26,7 +27,8 @@ interface HoursInputProps {
 }
 
 export default function HoursInput({ date, onSave }: HoursInputProps) {
-  const [hours, setHours] = useState('');
+  const [hours, setHours] = useState(0);
+  const [minutes, setMinutes] = useState(0); // 0 ou 30
   const [note, setNote] = useState('');
   const [isBilled, setIsBilled] = useState(true); // Par défaut, les heures sont notées
   const [loading, setLoading] = useState(false);
@@ -51,12 +53,21 @@ export default function HoursInput({ date, onSave }: HoursInputProps) {
       const entry = await getWorkEntryByDate(dateStr);
 
       if (entry) {
-        setHours(entry.hours.toString());
+        // Convertir les heures décimales en heures et minutes
+        const fullHours = Math.floor(entry.hours);
+        const mins = Math.round((entry.hours - fullHours) * 60);
+
+        // Quantiser à 0 ou 30 minutes
+        const quantizedMinutes = mins >= 15 ? 30 : 0;
+
+        setHours(fullHours);
+        setMinutes(quantizedMinutes);
         setNote(entry.note || '');
-        setIsBilled(entry.isBilled !== undefined ? entry.isBilled : true); // Utiliser la valeur existante ou true par défaut
+        setIsBilled(entry.isBilled !== undefined ? entry.isBilled : true);
       } else {
         // Reset fields for a new date
-        setHours('');
+        setHours(0);
+        setMinutes(0);
         setNote('');
         setIsBilled(true);
       }
@@ -70,13 +81,15 @@ export default function HoursInput({ date, onSave }: HoursInputProps) {
   const handleSave = async () => {
     Keyboard.dismiss();
 
-    if (!hours.trim()) {
-      Alert.alert('Erreur', "Veuillez entrer un nombre d'heures");
+    if (hours === 0 && minutes === 0) {
+      Alert.alert('Erreur', "Veuillez entrer un nombre d'heures valide");
       return;
     }
 
-    const numHours = parseFloat(hours);
-    if (isNaN(numHours) || numHours < 0 || numHours > 24) {
+    // Convertir les heures et minutes en nombre décimal
+    const numHours = hours + minutes / 60;
+
+    if (numHours < 0 || numHours > 24) {
       Alert.alert(
         'Erreur',
         "Veuillez entrer un nombre d'heures valide (entre 0 et 24)"
@@ -111,60 +124,98 @@ export default function HoursInput({ date, onSave }: HoursInputProps) {
     }
   };
 
+  const incrementHours = () => {
+    if (hours < 24) {
+      setHours((prev) => prev + 1);
+    }
+  };
+
+  const decrementHours = () => {
+    if (hours > 0) {
+      setHours((prev) => prev - 1);
+    } else if (hours === 0 && minutes === 30) {
+      setMinutes(0);
+    }
+  };
+
+  const toggleMinutes = () => {
+    setMinutes((prev) => (prev === 0 ? 30 : 0));
+  };
+
+  const formatTimeDisplay = () => {
+    return `${hours}h${minutes === 30 ? '30' : '00'}`;
+  };
+
   return (
-    <View style={styles.container}>
-      <View style={styles.inputRow}>
-        <View style={styles.hoursInputContainer}>
-          <Text style={styles.label}>Heures</Text>
-          <TextInput
-            style={styles.input}
-            value={hours}
-            onChangeText={setHours}
-            placeholder="Ex: 8"
-            keyboardType="numeric"
-            maxLength={5}
-            editable={!loading}
-          />
+    <Animated.View entering={FadeIn.duration(300)} style={styles.container}>
+      <View style={styles.topSection}>
+        <View style={styles.timeSection}>
+          <Text style={styles.sectionTitle}>Durée</Text>
+          <View style={styles.timeInputRow}>
+            <View style={styles.timeControlContainer}>
+              <TouchableOpacity
+                style={styles.timeControl}
+                onPress={incrementHours}
+                disabled={loading || hours >= 24}
+              >
+                <ChevronUp size={20} color={COLORS.text} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.timeDisplay}
+                onPress={toggleMinutes}
+                disabled={loading}
+              >
+                <Clock
+                  size={14}
+                  color={COLORS.primary}
+                  style={styles.timeIcon}
+                />
+                <Text style={styles.timeText}>{formatTimeDisplay()}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.timeControl}
+                onPress={decrementHours}
+                disabled={loading || (hours === 0 && minutes === 0)}
+              >
+                <ChevronDown size={20} color={COLORS.text} />
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
 
-        <View style={styles.switchContainer}>
-          <Text style={styles.label}>Status</Text>
+        <View style={styles.statusSection}>
+          <Text style={styles.sectionTitle}>Status</Text>
           <View style={styles.switchWrapper}>
-            <Animated.Text
-              style={[
-                styles.switchLabel,
-                !isBilled && styles.activeLabel,
-                { opacity: isBilled ? 0.6 : 1 },
-              ]}
+            <Text
+              style={[styles.statusLabel, !isBilled && styles.statusActive]}
             >
-              Non
-            </Animated.Text>
+              Non notées
+            </Text>
             <Switch
               value={isBilled}
               onValueChange={setIsBilled}
-              trackColor={{ false: '#DDDDDD', true: COLORS.primaryLightest }}
-              thumbColor={isBilled ? COLORS.primary : '#999999'}
-              ios_backgroundColor="#DDDDDD"
+              trackColor={{
+                false: COLORS.secondaryLightest,
+                true: COLORS.primaryLightest,
+              }}
+              thumbColor={isBilled ? COLORS.primary : COLORS.secondary}
+              ios_backgroundColor={COLORS.secondaryLightest}
               disabled={loading}
               style={styles.switch}
             />
-            <Animated.Text
-              style={[
-                styles.switchLabel,
-                isBilled && styles.activeLabel,
-                { opacity: isBilled ? 1 : 0.6 },
-              ]}
-            >
+            <Text style={[styles.statusLabel, isBilled && styles.statusActive]}>
               Notées
-            </Animated.Text>
+            </Text>
           </View>
         </View>
       </View>
 
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>Note (optionnel)</Text>
+      <View style={styles.noteSection}>
+        <Text style={styles.sectionTitle}>Note (optionnel)</Text>
         <TextInput
-          style={[styles.input, styles.noteInput]}
+          style={styles.noteInput}
           value={note}
           onChangeText={setNote}
           placeholder="Ajoutez une note..."
@@ -174,19 +225,19 @@ export default function HoursInput({ date, onSave }: HoursInputProps) {
         />
       </View>
 
-      <Animated.View style={[styles.buttonContainer, animatedButtonStyle]}>
+      <Animated.View style={[styles.buttonSection, animatedButtonStyle]}>
         <TouchableOpacity
           style={styles.saveButton}
           onPress={handleSave}
           disabled={loading || saving}
         >
-          <Save size={18} color="#FFFFFF" />
+          <Save size={16} color={COLORS.card} />
           <Text style={styles.buttonText}>
             {saving ? 'Enregistrement...' : 'Enregistrer'}
           </Text>
         </TouchableOpacity>
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -194,94 +245,117 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.card,
     borderRadius: 16,
-    padding: 14,
-    shadowColor: COLORS.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    padding: 16,
+    ...SHADOWS.medium,
   },
-  inputRow: {
+  topSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 16,
   },
-  hoursInputContainer: {
-    width: '40%',
+  timeSection: {
+    width: '48%',
   },
-  switchContainer: {
-    width: '56%',
+  statusSection: {
+    width: '48%',
   },
-  label: {
+  sectionTitle: {
     fontFamily: FONTS.medium,
     fontSize: 14,
     color: COLORS.text,
-    marginBottom: 6,
+    marginBottom: 8,
   },
-  input: {
-    fontFamily: FONTS.regular,
+  timeInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  timeControlContainer: {
+    flex: 1,
+    flexDirection: 'column',
+    alignItems: 'center',
     backgroundColor: COLORS.inputBackground,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-    color: COLORS.text,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
+    overflow: 'hidden',
   },
-  inputContainer: {
-    marginBottom: 14,
+  timeControl: {
+    width: '100%',
+    alignItems: 'center',
+    padding: 4,
   },
-  noteInput: {
-    minHeight: 80,
-    maxHeight: 120,
-    textAlignVertical: 'top',
-  },
-  switchWrapper: {
+  timeDisplay: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 8,
+    width: '100%',
+  },
+  timeIcon: {
+    marginRight: 4,
+  },
+  timeText: {
+    fontFamily: FONTS.medium,
+    fontSize: 18,
+    color: COLORS.text,
+  },
+  switchWrapper: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: COLORS.inputBackground,
-    borderRadius: 10,
-    padding: 8,
+    borderRadius: 12,
+    padding: 6,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
   switch: {
-    marginHorizontal: 8,
-    transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }],
+    margin: 4,
   },
-  switchLabel: {
+  statusLabel: {
     fontFamily: FONTS.regular,
     fontSize: 12,
     color: COLORS.textLight,
+    textAlign: 'center',
   },
-  activeLabel: {
+  statusActive: {
     fontFamily: FONTS.medium,
     color: COLORS.primary,
   },
-  buttonContainer: {
+  noteSection: {
+    marginBottom: 16,
+  },
+  noteInput: {
+    fontFamily: FONTS.regular,
+    backgroundColor: COLORS.inputBackground,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: COLORS.text,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  buttonSection: {
     alignItems: 'center',
   },
   saveButton: {
     backgroundColor: COLORS.primary,
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 160,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 4,
+    width: '100%',
+    ...SHADOWS.button,
   },
   buttonText: {
     color: COLORS.card,
     fontFamily: FONTS.medium,
-    fontSize: 14,
+    fontSize: 16,
     marginLeft: 8,
   },
 });

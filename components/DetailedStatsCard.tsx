@@ -6,13 +6,13 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
+import { formatHoursToDisplay } from '@/utils/timeFormatter';
 
 interface DetailedStatsCardProps {
   title: string;
   totalValue: number;
   billedValue: number;
   unbilledValue: number;
-  unit?: string;
   description?: string;
   animate?: boolean;
 }
@@ -22,7 +22,6 @@ export default function DetailedStatsCard({
   totalValue,
   billedValue,
   unbilledValue,
-  unit = 'h',
   description,
   animate = true,
 }: DetailedStatsCardProps) {
@@ -59,9 +58,8 @@ export default function DetailedStatsCard({
 
       <View style={styles.valueContainer}>
         <Animated.Text style={[styles.value, animatedValueStyle]}>
-          {totalValue.toFixed(1)}
+          {formatHoursToDisplay(totalValue)}
         </Animated.Text>
-        <Text style={styles.unit}>{unit}</Text>
       </View>
 
       <View style={styles.barContainer}>
@@ -98,8 +96,7 @@ export default function DetailedStatsCard({
           />
           <Text style={styles.detailLabel}>Notées:</Text>
           <Animated.Text style={[styles.detailValue, animatedValueStyle]}>
-            {billedValue.toFixed(1)}
-            {unit} ({billedPercentage.toFixed(0)}%)
+            {formatHoursToDisplay(billedValue)} ({billedPercentage.toFixed(0)}%)
           </Animated.Text>
         </View>
 
@@ -109,8 +106,8 @@ export default function DetailedStatsCard({
           />
           <Text style={styles.detailLabel}>Non notées:</Text>
           <Animated.Text style={[styles.detailValue, animatedValueStyle]}>
-            {unbilledValue.toFixed(1)}
-            {unit} ({unbilledPercentage.toFixed(0)}%)
+            {formatHoursToDisplay(unbilledValue)} (
+            {unbilledPercentage.toFixed(0)}%)
           </Animated.Text>
         </View>
       </View>
@@ -147,12 +144,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Bold',
     fontSize: 28,
     color: '#333333',
-  },
-  unit: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 16,
-    color: '#555555',
-    marginLeft: 4,
   },
   barContainer: {
     marginVertical: 12,

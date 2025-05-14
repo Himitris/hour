@@ -20,8 +20,7 @@
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.himitris.suivitemps",
-      "versionCode": 1
+      "package": "com.himitris.suivitemps"
     },
     "web": {
       "bundler": "metro",

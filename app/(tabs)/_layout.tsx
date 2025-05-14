@@ -63,8 +63,7 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   tabBar: {
     backgroundColor: COLORS.card,
-    height: 60, // Hauteur réduite
-    marginBottom: 18,
+    height: 60, 
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
     elevation: 8,
