@@ -1,5 +1,5 @@
 // app/(tabs)/stats.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   RefreshControl,
   TouchableOpacity,
   Dimensions,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -17,6 +18,11 @@ import {
   Calendar,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  X,
+  Sliders,
 } from 'lucide-react-native';
 import DetailedStatsCard from '@/components/DetailedStatsCard';
 import StatsCard from '@/components/StatsCard';
@@ -41,15 +47,20 @@ import {
   getStartOfMonth,
   getEndOfMonth,
   formatISODate,
+  parseISODate,
+  getDatesInRange,
 } from '@/utils/dateUtils';
 import { COLORS, FONTS, SHADOWS } from '@/constants/theme';
 import Animated, {
   FadeIn,
   FadeInDown,
   FadeInUp,
+  FadeOut,
 } from 'react-native-reanimated';
 import { useAppContext } from '@/contexts/AppContext';
 import WeeklyHoursChart from '@/components/WeeklyHoursChart';
+import MonthlyHoursChart from '@/components/MonthlyHoursChart';
+import ProjectDistributionChart from '@/components/ProjectDistributionChart';
 
 export default function StatsScreen() {
   const {
@@ -58,9 +69,21 @@ export default function StatsScreen() {
     refreshData,
     lastUpdated,
   } = useAppContext();
+
+  // État de navigation dans le temps
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [refreshing, setRefreshing] = useState(false);
   const [showTips, setShowTips] = useState(false);
   const [showPeriodDetails, setShowPeriodDetails] = useState(false);
+
+  // Nouvel état pour le mode d'affichage
+  const [viewMode, setViewMode] = useState('week'); // 'week' ou 'month'
+
+  // États pour les filtres
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterType, setFilterType] = useState('all'); // 'all', 'billed', 'unbilled'
+
+  // États pour les statistiques calculées
   const [stats, setStats] = useState({
     daily: 0,
     dailyBilled: 0,
@@ -73,37 +96,187 @@ export default function StatsScreen() {
     monthlyUnbilled: 0,
     weeklyAvg: 0,
     monthlyAvg: 0,
+    // Nouvelles statistiques ajoutées
+    longestDay: 0,
+    mostFrequentDay: '',
+    averagePerDay: {
+      monday: 0,
+      tuesday: 0,
+      wednesday: 0,
+      thursday: 0,
+      friday: 0,
+      saturday: 0,
+      sunday: 0,
+    },
   });
 
-  // Dates pour les périodes
-  const today = new Date();
-  const startOfWeek = getStartOfWeek(today);
-  const endOfWeek = getEndOfWeek(today);
-  const startOfMonth = getStartOfMonth(today);
-  const endOfMonth = getEndOfMonth(today);
+  // Dates pour les périodes basées sur la date sélectionnée
+  const startOfWeek = getStartOfWeek(selectedDate);
+  const endOfWeek = getEndOfWeek(selectedDate);
+  const startOfMonth = getStartOfMonth(selectedDate);
+  const endOfMonth = getEndOfMonth(selectedDate);
 
-  // Recalculer les statistiques lorsque les entrées changent ou lors d'un rafraîchissement
+  // Recalculer les statistiques lorsque les entrées changent ou lors d'un changement de période
   useEffect(() => {
     calculateStats(workEntries);
-  }, [workEntries, lastUpdated]);
+  }, [workEntries, lastUpdated, selectedDate, filterType]);
+
+  // Fonction pour avancer ou reculer dans le temps
+  const navigatePeriod = (direction: string) => {
+    const newDate = new Date(selectedDate);
+
+    if (viewMode === 'week') {
+      // Avancer ou reculer d'une semaine
+      newDate.setDate(newDate.getDate() + (direction === 'next' ? 7 : -7));
+    } else {
+      // Avancer ou reculer d'un mois
+      newDate.setMonth(newDate.getMonth() + (direction === 'next' ? 1 : -1));
+    }
+
+    setSelectedDate(newDate);
+  };
+
+  // Aller à la période actuelle
+  const goToCurrentPeriod = () => {
+    setSelectedDate(new Date());
+  };
+
+  // Filtrer les entrées en fonction des critères sélectionnés
+  const filterEntries = (entries: WorkEntries): WorkEntries => {
+    if (filterType === 'all') return entries;
+
+    return Object.entries(entries).reduce((filtered: WorkEntries, [date, entry]) => {
+      // Type guard: check entry is an object and has isBilled property
+      if (
+        typeof entry === 'object' &&
+        entry !== null &&
+        'isBilled' in entry
+      ) {
+        const e = entry as { isBilled?: boolean };
+        if (
+          (filterType === 'billed' && e.isBilled !== false) ||
+          (filterType === 'unbilled' && e.isBilled === false)
+        ) {
+          filtered[date] = entry;
+        }
+      }
+      return filtered;
+    }, {} as WorkEntries);
+  };
 
   const calculateStats = (workEntries: WorkEntries) => {
-    const today = new Date();
+    const filteredEntries = filterEntries(workEntries);
 
-    const daily = calculateDailyHours(workEntries, today);
-    const dailyBilled = calculateDailyBilledHours(workEntries, today);
-    const dailyUnbilled = calculateDailyUnbilledHours(workEntries, today);
+    // Stats quotidiennes
+    const daily = calculateDailyHours(filteredEntries, selectedDate);
+    const dailyBilled = calculateDailyBilledHours(
+      filteredEntries,
+      selectedDate
+    );
+    const dailyUnbilled = calculateDailyUnbilledHours(
+      filteredEntries,
+      selectedDate
+    );
 
-    const weekly = calculateWeeklyHours(workEntries, today);
-    const weeklyBilled = calculateWeeklyBilledHours(workEntries, today);
-    const weeklyUnbilled = calculateWeeklyUnbilledHours(workEntries, today);
+    // Stats hebdomadaires
+    const weekly = calculateWeeklyHours(filteredEntries, selectedDate);
+    const weeklyBilled = calculateWeeklyBilledHours(
+      filteredEntries,
+      selectedDate
+    );
+    const weeklyUnbilled = calculateWeeklyUnbilledHours(
+      filteredEntries,
+      selectedDate
+    );
 
-    const monthly = calculateMonthlyHours(workEntries, today);
-    const monthlyBilled = calculateMonthlyBilledHours(workEntries, today);
-    const monthlyUnbilled = calculateMonthlyUnbilledHours(workEntries, today);
+    // Stats mensuelles
+    const monthly = calculateMonthlyHours(filteredEntries, selectedDate);
+    const monthlyBilled = calculateMonthlyBilledHours(
+      filteredEntries,
+      selectedDate
+    );
+    const monthlyUnbilled = calculateMonthlyUnbilledHours(
+      filteredEntries,
+      selectedDate
+    );
 
-    const weeklyAvg = calculateWeeklyAverage(workEntries, today);
-    const monthlyAvg = calculateMonthlyAverage(workEntries, today);
+    // Moyennes
+    const weeklyAvg = calculateWeeklyAverage(filteredEntries, selectedDate);
+    const monthlyAvg = calculateMonthlyAverage(filteredEntries, selectedDate);
+
+    // Calcul du jour avec le plus d'heures
+    let longestDay = 0;
+    let mostFrequentDay = '';
+    const daysOfWeekCount = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+    const daysOfWeekHours = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+    const daysOfWeekEntries = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+
+    // Calculer les statistiques avancées
+    Object.entries(filteredEntries).forEach(([date, entry]) => {
+      const entryDate = new Date(date);
+      const dayOfWeek = entryDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+
+      // Jour avec le plus d'heures
+      if (entry.hours > longestDay) {
+        longestDay = entry.hours;
+      }
+
+      // Compter les jours travaillés par jour de la semaine
+      if (entry.hours > 0) {
+        daysOfWeekCount[dayOfWeek as keyof typeof daysOfWeekCount]++;
+        daysOfWeekHours[dayOfWeek as keyof typeof daysOfWeekHours] += entry.hours;
+        daysOfWeekEntries[dayOfWeek as keyof typeof daysOfWeekEntries]++;
+      }
+    });
+
+    // Calculer le jour de la semaine le plus fréquent
+    let maxCount = 0;
+    for (let i = 0; i < 7; i++) {
+      if (daysOfWeekCount[i as keyof typeof daysOfWeekCount] > maxCount) {
+        maxCount = daysOfWeekCount[i as keyof typeof daysOfWeekCount];
+        mostFrequentDay = [
+          'Dimanche',
+          'Lundi',
+          'Mardi',
+          'Mercredi',
+          'Jeudi',
+          'Vendredi',
+          'Samedi',
+        ][i];
+      }
+    }
+
+    // Calculer la moyenne d'heures par jour de la semaine
+    const averagePerDay = {
+      sunday:
+        daysOfWeekEntries[0] > 0
+          ? daysOfWeekHours[0] / daysOfWeekEntries[0]
+          : 0,
+      monday:
+        daysOfWeekEntries[1] > 0
+          ? daysOfWeekHours[1] / daysOfWeekEntries[1]
+          : 0,
+      tuesday:
+        daysOfWeekEntries[2] > 0
+          ? daysOfWeekHours[2] / daysOfWeekEntries[2]
+          : 0,
+      wednesday:
+        daysOfWeekEntries[3] > 0
+          ? daysOfWeekHours[3] / daysOfWeekEntries[3]
+          : 0,
+      thursday:
+        daysOfWeekEntries[4] > 0
+          ? daysOfWeekHours[4] / daysOfWeekEntries[4]
+          : 0,
+      friday:
+        daysOfWeekEntries[5] > 0
+          ? daysOfWeekHours[5] / daysOfWeekEntries[5]
+          : 0,
+      saturday:
+        daysOfWeekEntries[6] > 0
+          ? daysOfWeekHours[6] / daysOfWeekEntries[6]
+          : 0,
+    };
 
     setStats({
       daily,
@@ -117,54 +290,179 @@ export default function StatsScreen() {
       monthlyUnbilled,
       weeklyAvg,
       monthlyAvg,
+      longestDay,
+      mostFrequentDay,
+      averagePerDay,
     });
   };
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await refreshData();
     setRefreshing(false);
-  };
+  }, [refreshData]);
 
   const toggleTips = () => {
     setShowTips(!showTips);
+  };
+
+  const toggleFilters = () => {
+    setShowFilters(!showFilters);
   };
 
   const togglePeriodDetails = () => {
     setShowPeriodDetails(!showPeriodDetails);
   };
 
+  const toggleViewMode = () => {
+    setViewMode(viewMode === 'week' ? 'month' : 'week');
+  };
+
   // Formatage simplifié pour l'affichage des périodes
-  const formatShortDate = (date: Date): string => {
+  const formatShortDate = (date: Date) => {
     return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
   };
 
-  // Calculer le nombre de jours travaillés ce mois
-  const daysWorkedThisMonth = Object.entries(workEntries).filter(
-    ([date, entry]) => {
-      const entryDate = new Date(date);
-      return (
-        entryDate >= startOfMonth && entryDate <= endOfMonth && entry.hours > 0
-      );
-    }
-  ).length;
+  // Calculer le nombre de jours travaillés sur la période sélectionnée
+  const countWorkedDays = () => {
+    const startDate = viewMode === 'week' ? startOfWeek : startOfMonth;
+    const endDate = viewMode === 'week' ? endOfWeek : endOfMonth;
+    const datesInPeriod = getDatesInRange(startDate, endDate);
+
+    return datesInPeriod.filter((date) => {
+      const entry = workEntries[date];
+      return entry && entry.hours > 0;
+    }).length;
+  };
 
   // Calculer le ratio des heures notées/non notées
   const getBilledPercentage = () => {
-    if (stats.monthlyBilled === 0 && stats.monthlyUnbilled === 0) return 0;
-    return Math.round(
-      (stats.monthlyBilled / (stats.monthlyBilled + stats.monthlyUnbilled)) *
-        100
-    );
+    const billed =
+      viewMode === 'week' ? stats.weeklyBilled : stats.monthlyBilled;
+    const unbilled =
+      viewMode === 'week' ? stats.weeklyUnbilled : stats.monthlyUnbilled;
+    const total = billed + unbilled;
+
+    if (total === 0) return 0;
+    return Math.round((billed / total) * 100);
   };
 
-  const getUnbilledPercentage = () => {
-    if (stats.monthlyBilled === 0 && stats.monthlyUnbilled === 0) return 0;
-    return Math.round(
-      (stats.monthlyUnbilled / (stats.monthlyBilled + stats.monthlyUnbilled)) *
-        100
-    );
+  // Titre dynamique en fonction de la période sélectionnée
+  const getPeriodTitle = () => {
+    if (viewMode === 'week') {
+      return `Semaine du ${formatShortDate(startOfWeek)} au ${formatShortDate(
+        endOfWeek
+      )}`;
+    } else {
+      return new Intl.DateTimeFormat('fr-FR', {
+        month: 'long',
+        year: 'numeric',
+      }).format(startOfMonth);
+    }
   };
+
+  // Vérifier si la période sélectionnée est la période courante
+  const isCurrentPeriod = () => {
+    const today = new Date();
+    if (viewMode === 'week') {
+      const currentStartOfWeek = getStartOfWeek(today);
+      return (
+        startOfWeek.getFullYear() === currentStartOfWeek.getFullYear() &&
+        startOfWeek.getMonth() === currentStartOfWeek.getMonth() &&
+        startOfWeek.getDate() === currentStartOfWeek.getDate()
+      );
+    } else {
+      return (
+        startOfMonth.getFullYear() === today.getFullYear() &&
+        startOfMonth.getMonth() === today.getMonth()
+      );
+    }
+  };
+
+  // Rendu du composant de filtre
+  const renderFilterModal = () => (
+    <Modal
+      animationType="fade"
+      transparent={true}
+      visible={showFilters}
+      onRequestClose={toggleFilters}
+    >
+      <View style={styles.modalOverlay}>
+        <Animated.View
+          entering={FadeInUp.duration(300)}
+          exiting={FadeOut.duration(200)}
+          style={styles.filterModal}
+        >
+          <View style={styles.filterHeader}>
+            <Text style={styles.filterTitle}>Filtres</Text>
+            <TouchableOpacity onPress={toggleFilters}>
+              <X size={20} color={COLORS.text} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.filterOptions}>
+            <TouchableOpacity
+              style={[
+                styles.filterOption,
+                filterType === 'all' && styles.filterOptionActive,
+              ]}
+              onPress={() => setFilterType('all')}
+            >
+              <Text
+                style={[
+                  styles.filterOptionText,
+                  filterType === 'all' && styles.filterOptionTextActive,
+                ]}
+              >
+                Toutes les heures
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.filterOption,
+                filterType === 'billed' && styles.filterOptionActive,
+              ]}
+              onPress={() => setFilterType('billed')}
+            >
+              <Text
+                style={[
+                  styles.filterOptionText,
+                  filterType === 'billed' && styles.filterOptionTextActive,
+                ]}
+              >
+                Heures notées
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.filterOption,
+                filterType === 'unbilled' && styles.filterOptionActive,
+              ]}
+              onPress={() => setFilterType('unbilled')}
+            >
+              <Text
+                style={[
+                  styles.filterOptionText,
+                  filterType === 'unbilled' && styles.filterOptionTextActive,
+                ]}
+              >
+                Heures non notées
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            style={styles.applyFilterButton}
+            onPress={toggleFilters}
+          >
+            <Text style={styles.applyFilterText}>Appliquer</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -184,6 +482,12 @@ export default function StatsScreen() {
             <Text style={styles.title}>Statistiques</Text>
             <View style={styles.headerButtons}>
               <TouchableOpacity
+                style={[styles.iconButton, styles.filterButton]}
+                onPress={toggleFilters}
+              >
+                <Filter size={18} color={COLORS.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={[styles.iconButton, styles.calendarButton]}
                 onPress={togglePeriodDetails}
               >
@@ -194,7 +498,61 @@ export default function StatsScreen() {
               </TouchableOpacity>
             </View>
           </View>
-          <Text style={styles.subtitle}>Analysez votre temps de travail</Text>
+
+          {/* Sélecteur de période et navigation */}
+          <View style={styles.periodNavigator}>
+            <TouchableOpacity
+              style={styles.navButton}
+              onPress={() => navigatePeriod('prev')}
+            >
+              <ChevronLeft size={22} color={COLORS.primary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.periodSelector}
+              onPress={toggleViewMode}
+            >
+              <Text style={styles.periodTitle}>{getPeriodTitle()}</Text>
+              <View style={styles.viewModeToggle}>
+                <Text
+                  style={[
+                    styles.viewModeText,
+                    viewMode === 'week' ? styles.viewModeActive : {},
+                  ]}
+                >
+                  Semaine
+                </Text>
+                <Text style={styles.viewModeSeparator}>|</Text>
+                <Text
+                  style={[
+                    styles.viewModeText,
+                    viewMode === 'month' ? styles.viewModeActive : {},
+                  ]}
+                >
+                  Mois
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.navButton}
+              onPress={() => navigatePeriod('next')}
+            >
+              <ChevronRight size={22} color={COLORS.primary} />
+            </TouchableOpacity>
+          </View>
+
+          {!isCurrentPeriod() && (
+            <TouchableOpacity
+              style={styles.currentPeriodButton}
+              onPress={goToCurrentPeriod}
+            >
+              <Calendar size={16} color={COLORS.card} />
+              <Text style={styles.currentPeriodText}>
+                {viewMode === 'week' ? 'Semaine actuelle' : 'Mois actuel'}
+              </Text>
+            </TouchableOpacity>
+          )}
 
           {showPeriodDetails && (
             <Animated.View
@@ -202,22 +560,33 @@ export default function StatsScreen() {
               style={styles.periodDetailBox}
             >
               <View style={styles.periodDetailRow}>
-                <Text style={styles.periodLabel}>Aujourd'hui:</Text>
+                <Text style={styles.periodLabel}>Période sélectionnée:</Text>
                 <Text style={styles.periodValue}>
-                  {formatDateForDisplay(today)}
+                  {viewMode === 'week'
+                    ? `${formatShortDate(startOfWeek)} - ${formatShortDate(
+                        endOfWeek
+                      )}`
+                    : new Intl.DateTimeFormat('fr-FR', {
+                        month: 'long',
+                        year: 'numeric',
+                      }).format(startOfMonth)}
                 </Text>
               </View>
               <View style={styles.periodDetailRow}>
-                <Text style={styles.periodLabel}>Semaine:</Text>
+                <Text style={styles.periodLabel}>Jours travaillés:</Text>
                 <Text style={styles.periodValue}>
-                  {formatShortDate(startOfWeek)} - {formatShortDate(endOfWeek)}
+                  {countWorkedDays()} /{' '}
+                  {viewMode === 'week' ? '7' : endOfMonth.getDate()}
                 </Text>
               </View>
               <View style={styles.periodDetailRow}>
-                <Text style={styles.periodLabel}>Mois:</Text>
+                <Text style={styles.periodLabel}>Filtre actif:</Text>
                 <Text style={styles.periodValue}>
-                  {formatShortDate(startOfMonth)} -{' '}
-                  {formatShortDate(endOfMonth)}
+                  {filterType === 'all'
+                    ? 'Toutes les heures'
+                    : filterType === 'billed'
+                    ? 'Heures notées'
+                    : 'Heures non notées'}
                 </Text>
               </View>
             </Animated.View>
@@ -230,91 +599,105 @@ export default function StatsScreen() {
           </View>
         ) : (
           <View style={styles.statsContainer}>
+            {/* Stats détaillées pour la période sélectionnée */}
             <Animated.View entering={FadeInDown.delay(100).duration(500)}>
               <DetailedStatsCard
-                title="Aujourd'hui"
-                totalValue={stats.daily}
-                billedValue={stats.dailyBilled}
-                unbilledValue={stats.dailyUnbilled}
-                description="Heures travaillées aujourd'hui"
+                title={viewMode === 'week' ? 'Cette semaine' : 'Ce mois'}
+                totalValue={viewMode === 'week' ? stats.weekly : stats.monthly}
+                billedValue={
+                  viewMode === 'week' ? stats.weeklyBilled : stats.monthlyBilled
+                }
+                unbilledValue={
+                  viewMode === 'week'
+                    ? stats.weeklyUnbilled
+                    : stats.monthlyUnbilled
+                }
+                description={`Total des heures (${
+                  viewMode === 'week'
+                    ? `${formatShortDate(startOfWeek)} - ${formatShortDate(
+                        endOfWeek
+                      )}`
+                    : new Intl.DateTimeFormat('fr-FR', {
+                        month: 'long',
+                      }).format(startOfMonth)
+                })`}
               />
             </Animated.View>
 
-            <Animated.View entering={FadeInDown.delay(200).duration(500)}>
-              <DetailedStatsCard
-                title="Cette semaine"
-                totalValue={stats.weekly}
-                billedValue={stats.weeklyBilled}
-                unbilledValue={stats.weeklyUnbilled}
-                description={`Total des heures (${formatShortDate(
-                  startOfWeek
-                )} - ${formatShortDate(endOfWeek)})`}
-              />
-            </Animated.View>
-
-            {/* Composant graphique pour la semaine */}
+            {/* Graphique adaptatif selon le mode de vue */}
             <Animated.View
-              entering={FadeInDown.delay(250).duration(500)}
+              entering={FadeInDown.delay(150).duration(500)}
               style={styles.chartContainer}
             >
-              <WeeklyHoursChart entries={workEntries} />
+              {viewMode === 'week' ? (
+                <WeeklyHoursChart
+                  entries={workEntries}
+                  selectedDate={selectedDate}
+                />
+              ) : (
+                <MonthlyHoursChart
+                  entries={workEntries}
+                  selectedDate={selectedDate}
+                />
+              )}
             </Animated.View>
 
-            <Animated.View entering={FadeInDown.delay(300).duration(500)}>
-              <DetailedStatsCard
-                title="Ce mois"
-                totalValue={stats.monthly}
-                billedValue={stats.monthlyBilled}
-                unbilledValue={stats.monthlyUnbilled}
-                description={`Total des heures (${formatShortDate(
-                  startOfMonth
-                )} - ${formatShortDate(endOfMonth)})`}
-              />
-            </Animated.View>
-
+            {/* Moyennes et statistiques supplémentaires */}
             <Text style={styles.sectionTitle}>Moyennes journalières</Text>
 
             <View style={styles.averagesRow}>
               <Animated.View
-                entering={FadeInDown.delay(400).duration(500)}
+                entering={FadeInDown.delay(200).duration(500)}
                 style={styles.averageCard}
               >
                 <StatsCard
-                  title="Semaine"
-                  value={stats.weeklyAvg}
+                  title={
+                    viewMode === 'week' ? 'Moyenne semaine' : 'Moyenne mois'
+                  }
+                  value={
+                    viewMode === 'week' ? stats.weeklyAvg : stats.monthlyAvg
+                  }
                   color={COLORS.primary}
-                  description="Moyenne jours travaillés"
+                  description="Par jour travaillé"
                   animate={true}
                 />
               </Animated.View>
 
               <Animated.View
-                entering={FadeInDown.delay(450).duration(500)}
+                entering={FadeInDown.delay(250).duration(500)}
                 style={styles.averageCard}
               >
                 <StatsCard
-                  title="Mois"
-                  value={stats.monthlyAvg}
+                  title="Journée max"
+                  value={stats.longestDay}
                   color={COLORS.primary}
-                  description="Moyenne jours travaillés"
+                  description="Plus longue journée"
                   animate={true}
                 />
               </Animated.View>
             </View>
 
+            {/* Distribution par projet (simulée pour l'exemple) */}
+            <Animated.View
+              entering={FadeInDown.delay(300).duration(500)}
+              style={styles.chartContainer}
+            >
+              <ProjectDistributionChart
+                entries={workEntries}
+                selectedDate={selectedDate}
+                viewMode={viewMode}
+              />
+            </Animated.View>
+
             {/* Carte récapitulative */}
-            <Animated.View entering={FadeInDown.delay(500).duration(500)}>
+            <Animated.View entering={FadeInDown.delay(350).duration(500)}>
               <View style={styles.summaryCard}>
-                <Text style={styles.summaryTitle}>
-                  Récapitulatif du travail
-                </Text>
+                <Text style={styles.summaryTitle}>Récapitulatif détaillé</Text>
 
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>
-                    Total jours travaillés ce mois:
-                  </Text>
+                  <Text style={styles.summaryLabel}>Jours travaillés:</Text>
                   <Text style={styles.summaryValue}>
-                    {daysWorkedThisMonth} jours
+                    {countWorkedDays()} jours
                   </Text>
                 </View>
 
@@ -323,50 +706,85 @@ export default function StatsScreen() {
                     Ratio heures notées/non notées:
                   </Text>
                   <Text style={styles.summaryValue}>
-                    {getBilledPercentage()}% / {getUnbilledPercentage()}%
+                    {getBilledPercentage()}% / {100 - getBilledPercentage()}%
+                  </Text>
+                </View>
+
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>
+                    Jour le plus fréquent:
+                  </Text>
+                  <Text style={styles.summaryValue}>
+                    {stats.mostFrequentDay || 'N/A'}
                   </Text>
                 </View>
 
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Moyenne hebdomadaire:</Text>
                   <Text style={styles.summaryValue}>
-                    {(stats.monthly / 4).toFixed(1)}h
+                    {viewMode === 'month'
+                      ? (stats.monthly / 4).toFixed(1)
+                      : stats.weekly.toFixed(1)}
+                    h
                   </Text>
                 </View>
               </View>
             </Animated.View>
 
+            {/* Section pour les moyennes par jour de semaine */}
+            <Animated.View entering={FadeInDown.delay(400).duration(500)}>
+              <View style={styles.weekdayStatsCard}>
+                <Text style={styles.weekdayStatsTitle}>
+                  Moyennes par jour de semaine
+                </Text>
+                <View style={styles.weekdayStatsGrid}>
+                  {Object.entries({
+                    Lun: stats.averagePerDay.monday,
+                    Mar: stats.averagePerDay.tuesday,
+                    Mer: stats.averagePerDay.wednesday,
+                    Jeu: stats.averagePerDay.thursday,
+                    Ven: stats.averagePerDay.friday,
+                    Sam: stats.averagePerDay.saturday,
+                    Dim: stats.averagePerDay.sunday,
+                  }).map(([day, value], index) => (
+                    <View key={index} style={styles.weekdayStatItem}>
+                      <Text style={styles.weekdayLabel}>{day}</Text>
+                      <Text style={styles.weekdayValue}>
+                        {value.toFixed(1)}h
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </Animated.View>
+
+            {/* Conseils et informations */}
             {showTips && (
               <Animated.View
-                entering={FadeInDown.delay(550).duration(300)}
+                entering={FadeInDown.delay(450).duration(300)}
                 style={styles.tipsBox}
               >
                 <Text style={styles.tipsTitle}>
-                  Comprendre vos statistiques
+                  Fonctionnalités des statistiques
                 </Text>
                 <Text style={styles.tipsText}>
-                  • Les heures notées correspondent au temps facturable à vos
-                  clients
+                  • Utilisez les flèches pour naviguer entre les semaines ou les
+                  mois
                 </Text>
                 <Text style={styles.tipsText}>
-                  • Les heures non notées sont du temps de travail non
-                  facturable
+                  • Changez de mode d'affichage (semaine/mois) en appuyant sur
+                  le titre
                 </Text>
                 <Text style={styles.tipsText}>
-                  • Les moyennes sont calculées uniquement sur les jours
-                  travaillés
+                  • Activez des filtres pour n'afficher que certains types
+                  d'heures
                 </Text>
                 <Text style={styles.tipsText}>
-                  • Le début de semaine est fixé au lundi
+                  • Consultez les détails de la période en appuyant sur l'icône
+                  calendrier
                 </Text>
                 <Text style={styles.tipsText}>
-                  • Le début de mois est fixé au 1er jour du mois
-                </Text>
-                <Text style={styles.tipsText}>
-                  • Les modifications de saisie sont automatiquement répercutées
-                </Text>
-                <Text style={styles.tipsText}>
-                  • Tirez vers le bas pour actualiser manuellement
+                  • Tirez vers le bas pour actualiser les données
                 </Text>
                 <TouchableOpacity
                   style={styles.refreshStatsButton}
@@ -382,6 +800,9 @@ export default function StatsScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Modal de filtres */}
+      {renderFilterModal()}
     </SafeAreaView>
   );
 }
@@ -421,6 +842,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginLeft: 8,
   },
+  filterButton: {
+    backgroundColor: COLORS.primaryLightest,
+  },
   calendarButton: {
     backgroundColor: COLORS.primaryLightest,
   },
@@ -430,11 +854,70 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primaryLightest,
     marginLeft: 8,
   },
-  subtitle: {
-    fontFamily: FONTS.regular,
-    fontSize: 16,
-    color: COLORS.textLight,
+  periodNavigator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 12,
     marginBottom: 8,
+  },
+  navButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: COLORS.card,
+    ...SHADOWS.small,
+  },
+  periodSelector: {
+    flex: 1,
+    marginHorizontal: 10,
+    alignItems: 'center',
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    padding: 10,
+    ...SHADOWS.small,
+  },
+  periodTitle: {
+    fontFamily: FONTS.medium,
+    fontSize: 15,
+    color: COLORS.text,
+    marginBottom: 4,
+  },
+  viewModeToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  viewModeText: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.textLight,
+    paddingHorizontal: 6,
+  },
+  viewModeActive: {
+    fontFamily: FONTS.medium,
+    color: COLORS.primary,
+  },
+  viewModeSeparator: {
+    fontFamily: FONTS.regular,
+    fontSize: 11,
+    color: COLORS.textLight,
+  },
+  currentPeriodButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    borderRadius: 10,
+    padding: 8,
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 8,
+    ...SHADOWS.button,
+  },
+  currentPeriodText: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.card,
+    marginLeft: 6,
   },
   periodDetailBox: {
     backgroundColor: COLORS.card,
@@ -522,6 +1005,47 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     textAlign: 'right',
   },
+  weekdayStatsCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    ...SHADOWS.medium,
+  },
+  weekdayStatsTitle: {
+    fontFamily: FONTS.medium,
+    fontSize: 16,
+    color: COLORS.text,
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    paddingBottom: 8,
+  },
+  weekdayStatsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  weekdayStatItem: {
+    width: '32%',
+    backgroundColor: COLORS.inputBackground,
+    borderRadius: 10,
+    padding: 10,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  weekdayLabel: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.textLight,
+    marginBottom: 4,
+  },
+  weekdayValue: {
+    fontFamily: FONTS.bold,
+    fontSize: 16,
+    color: COLORS.text,
+  },
   tipsBox: {
     backgroundColor: COLORS.primary,
     borderRadius: 16,
@@ -558,5 +1082,66 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.card,
     marginLeft: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  filterModal: {
+    backgroundColor: COLORS.card,
+    width: '90%',
+    borderRadius: 16,
+    padding: 20,
+    ...SHADOWS.large,
+  },
+  filterHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    paddingBottom: 10,
+  },
+  filterTitle: {
+    fontFamily: FONTS.bold,
+    fontSize: 18,
+    color: COLORS.text,
+  },
+  filterOptions: {
+    marginBottom: 20,
+  },
+  filterOption: {
+    padding: 14,
+    borderRadius: 10,
+    backgroundColor: COLORS.inputBackground,
+    marginBottom: 10,
+  },
+  filterOptionActive: {
+    backgroundColor: COLORS.primaryLightest,
+  },
+  filterOptionText: {
+    fontFamily: FONTS.medium,
+    fontSize: 15,
+    color: COLORS.text,
+    textAlign: 'center',
+  },
+  filterOptionTextActive: {
+    color: COLORS.primary,
+  },
+  applyFilterButton: {
+    backgroundColor: COLORS.primary,
+    padding: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    ...SHADOWS.button,
+  },
+  applyFilterText: {
+    fontFamily: FONTS.medium,
+    fontSize: 16,
+    color: COLORS.card,
   },
 });

@@ -1,6 +1,12 @@
 // components/WeeklyHoursChart.tsx
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Dimensions,
+  TouchableOpacity,
+} from 'react-native';
 import { COLORS, FONTS } from '@/constants/theme';
 import { WorkEntries } from '@/types';
 import {
@@ -8,19 +14,35 @@ import {
   getDatesInRange,
   getEndOfWeek,
   formatISODate,
+  formatDateForDisplay,
+  parseISODate,
 } from '@/utils/dateUtils';
+import { AlertCircle } from 'lucide-react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 interface WeeklyHoursChartProps {
   entries: WorkEntries;
+  selectedDate: Date;
+  onDayPress?: (date: Date) => void;
 }
 
-export default function WeeklyHoursChart({ entries }: WeeklyHoursChartProps) {
-  const today = new Date();
-  const startOfWeek = getStartOfWeek(today);
-  const endOfWeek = getEndOfWeek(today);
+export default function WeeklyHoursChart({
+  entries,
+  selectedDate,
+  onDayPress,
+}: WeeklyHoursChartProps) {
+  const startOfWeek = getStartOfWeek(selectedDate);
+  const endOfWeek = getEndOfWeek(selectedDate);
   const datesInWeek = getDatesInRange(startOfWeek, endOfWeek);
 
   const weekDays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+  const today = formatISODate(new Date());
+
+  // État pour le jour sélectionné dans le graphique
+  const [highlightedDay, setHighlightedDay] = React.useState<string | null>(
+    null
+  );
+  const [showDayDetails, setShowDayDetails] = React.useState(false);
 
   // Préparer les données pour le graphique
   const chartData = useMemo(() => {
@@ -36,9 +58,12 @@ export default function WeeklyHoursChart({ entries }: WeeklyHoursChartProps) {
         billedHours,
         unbilledHours,
         total,
+        isToday: dateStr === today,
+        note: entry?.note || '',
+        isHighlighted: dateStr === highlightedDay,
       };
     });
-  }, [entries, datesInWeek]);
+  }, [entries, datesInWeek, today, highlightedDay]);
 
   // Trouver la valeur maximale pour la normalisation
   const maxValue = Math.max(...chartData.map((d) => d.total), 8); // Au moins 8h pour l'échelle
@@ -51,19 +76,57 @@ export default function WeeklyHoursChart({ entries }: WeeklyHoursChartProps) {
     0
   );
 
+  // Formattage de la semaine pour l'affichage du titre
+  const weekTitle = `${startOfWeek.toLocaleDateString('fr-FR', {
+    day: 'numeric',
+    month: 'short',
+  })} - ${endOfWeek.toLocaleDateString('fr-FR', {
+    day: 'numeric',
+    month: 'short',
+  })}`;
+
+  // Gérer l'appui sur un jour
+  const handleDayPress = (dayInfo: (typeof chartData)[0]) => {
+    if (dayInfo.total > 0) {
+      setHighlightedDay(dayInfo.date);
+      setShowDayDetails(true);
+
+      // Si un callback externe est fourni
+      if (onDayPress) {
+        onDayPress(parseISODate(dayInfo.date));
+      }
+    }
+  };
+
+  // Obtenir les informations du jour sélectionné
+  const getSelectedDayInfo = () => {
+    return chartData.find((day) => day.date === highlightedDay);
+  };
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Aperçu de la semaine</Text>
+      <Text style={styles.title}>Semaine du {weekTitle}</Text>
 
       <View style={styles.chartContainer}>
         {chartData.map((day, index) => {
-          const today = formatISODate(new Date()) === day.date;
+          const isToday = day.isToday;
+          const isHighlighted = day.isHighlighted;
           const billedHeight = (day.billedHours / maxValue) * 120; // 120px height max
           const unbilledHeight = (day.unbilledHours / maxValue) * 120;
 
           return (
-            <View key={index} style={styles.dayColumn}>
-              <View style={styles.barContainer}>
+            <TouchableOpacity
+              key={index}
+              style={styles.dayColumn}
+              onPress={() => handleDayPress(day)}
+              activeOpacity={day.total > 0 ? 0.7 : 1}
+            >
+              <View
+                style={[
+                  styles.barContainer,
+                  isHighlighted && styles.highlighedBarContainer,
+                ]}
+              >
                 {day.unbilledHours > 0 && (
                   <View
                     style={[
@@ -83,16 +146,90 @@ export default function WeeklyHoursChart({ entries }: WeeklyHoursChartProps) {
                   />
                 )}
               </View>
-              <Text style={[styles.dayLabel, today && styles.todayLabel]}>
+              <Text
+                style={[
+                  styles.dayLabel,
+                  isToday && styles.todayLabel,
+                  isHighlighted && styles.highlightedDayLabel,
+                ]}
+              >
                 {day.day}
               </Text>
-              <Text style={styles.hourValue}>
+              <Text
+                style={[
+                  styles.hourValue,
+                  isHighlighted && styles.highlightedHourValue,
+                ]}
+              >
                 {day.total > 0 ? `${day.total}h` : '-'}
               </Text>
-            </View>
+
+              {day.note && (
+                <View style={styles.noteIndicator}>
+                  <AlertCircle size={8} color={COLORS.primary} />
+                </View>
+              )}
+            </TouchableOpacity>
           );
         })}
       </View>
+
+      {showDayDetails && highlightedDay && (
+        <Animated.View
+          entering={FadeIn.duration(300)}
+          style={styles.dayDetailsContainer}
+        >
+          <View style={styles.dayDetailsHeader}>
+            <Text style={styles.dayDetailsTitle}>
+              {formatDateForDisplay(parseISODate(highlightedDay))}
+            </Text>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setShowDayDetails(false)}
+            >
+              <Text style={styles.closeButtonText}>×</Text>
+            </TouchableOpacity>
+          </View>
+
+          {getSelectedDayInfo() && (
+            <View style={styles.dayDetailsContent}>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Total:</Text>
+                <Text style={styles.detailValue}>
+                  {getSelectedDayInfo()?.total.toFixed(1)}h
+                </Text>
+              </View>
+
+              {getSelectedDayInfo() && getSelectedDayInfo()!.billedHours > 0 && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Heures notées:</Text>
+                  <Text style={styles.detailValue}>
+                    {getSelectedDayInfo()!.billedHours.toFixed(1)}h
+                  </Text>
+                </View>
+              )}
+
+              {getSelectedDayInfo() && getSelectedDayInfo()!.unbilledHours > 0 && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Heures non notées:</Text>
+                  <Text style={styles.detailValue}>
+                    {getSelectedDayInfo()!.unbilledHours.toFixed(1)}h
+                  </Text>
+                </View>
+              )}
+
+              {getSelectedDayInfo()?.note && (
+                <View style={styles.noteContainer}>
+                  <Text style={styles.noteLabel}>Note:</Text>
+                  <Text style={styles.noteText}>
+                    {getSelectedDayInfo()?.note}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+        </Animated.View>
+      )}
 
       <View style={styles.legendContainer}>
         <View style={styles.legendItem}>
@@ -157,6 +294,11 @@ const styles = StyleSheet.create({
     width: 16,
     justifyContent: 'flex-end',
     alignItems: 'center',
+    borderRadius: 3,
+  },
+  highlighedBarContainer: {
+    backgroundColor: COLORS.primaryLightest,
+    width: 20,
   },
   bar: {
     width: '100%',
@@ -179,10 +321,26 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     color: COLORS.primary,
   },
+  highlightedDayLabel: {
+    fontFamily: FONTS.medium,
+    color: COLORS.primary,
+  },
   hourValue: {
     fontFamily: FONTS.regular,
     fontSize: 10,
     color: COLORS.textLight,
+  },
+  highlightedHourValue: {
+    fontFamily: FONTS.medium,
+    color: COLORS.text,
+  },
+  noteIndicator: {
+    position: 'absolute',
+    top: 112, // Juste au-dessus des barres
+    right: -2,
+    backgroundColor: COLORS.card,
+    borderRadius: 6,
+    padding: 2,
   },
   legendContainer: {
     flexDirection: 'row',
@@ -227,6 +385,76 @@ const styles = StyleSheet.create({
   summaryValue: {
     fontFamily: FONTS.medium,
     fontSize: 14,
+    color: COLORS.text,
+  },
+  dayDetailsContainer: {
+    backgroundColor: COLORS.primaryLightest,
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  dayDetailsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(51, 102, 255, 0.2)',
+    paddingBottom: 6,
+  },
+  dayDetailsTitle: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: COLORS.primary,
+  },
+  closeButton: {
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    backgroundColor: 'rgba(51, 102, 255, 0.2)',
+  },
+  closeButtonText: {
+    fontFamily: FONTS.bold,
+    fontSize: 16,
+    color: COLORS.primary,
+    lineHeight: 20,
+  },
+  dayDetailsContent: {
+    paddingVertical: 4,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  detailLabel: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.text,
+  },
+  detailValue: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.text,
+  },
+  noteContainer: {
+    marginTop: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+    borderRadius: 6,
+    padding: 8,
+  },
+  noteLabel: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.textLight,
+    marginBottom: 2,
+  },
+  noteText: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
     color: COLORS.text,
   },
 });
